@@ -252,7 +252,7 @@ Example questions:
    4. Select your repository
    5. Configure build settings:
       - Framework preset: None
-      - Build command: `chmod +x start.sh && ./start.sh`
+      - Build command: `bash start.sh`
       - Build output directory: `public`
       - Root directory: `/`
       - Environment variables:
@@ -269,8 +269,6 @@ Example questions:
       DEEPSEEK_API_KEY=your_api_key_here
       STREAMLIT_SERVER_PORT=8501
       STREAMLIT_SERVER_ADDRESS=0.0.0.0
-      STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
-      STREAMLIT_SERVER_BASE_URL_PATH=/app
       ```
 
 4. **Advanced Build Settings**
