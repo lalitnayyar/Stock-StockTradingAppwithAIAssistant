@@ -152,7 +152,7 @@ def get_ai_response(prompt):
         return f"Error: {str(e)}", None
 
 def display_stock_details(symbol):
-    """Display stock details including chart and information"""
+    """Display comprehensive stock details including chart and information"""
     if not symbol:
         return False
         
@@ -160,40 +160,116 @@ def display_stock_details(symbol):
     if hist_data is None or stock_info is None:
         st.error(f"Could not fetch data for {symbol}")
         return False
-        
-    # Display basic metrics
+    
+    # Company Header
+    st.subheader(f"{stock_info.get('longName', symbol)} (${symbol})")
+    
+    # Key Metrics in columns
     col1, col2, col3 = st.columns(3)
+    
     with col1:
         current_price = stock_info.get('regularMarketPrice', 'N/A')
-        if current_price != 'N/A':
-            current_price = f"${current_price:,.2f}"
-        st.metric("Current Price", current_price)
+        prev_close = stock_info.get('previousClose', 'N/A')
+        if current_price != 'N/A' and prev_close != 'N/A':
+            price_change = current_price - prev_close
+            price_change_pct = (price_change / prev_close) * 100
+            delta_color = "green" if price_change >= 0 else "red"
+            st.metric(
+                "Current Price",
+                f"${current_price:,.2f}",
+                f"{price_change:+.2f} ({price_change_pct:+.2f}%)",
+                delta_color=delta_color
+            )
+        else:
+            st.metric("Current Price", "N/A")
     
     with col2:
         market_cap = stock_info.get('marketCap', 'N/A')
         if market_cap != 'N/A':
-            market_cap = f"${market_cap:,.0f}"
-        st.metric("Market Cap", market_cap)
+            if market_cap >= 1e12:  # Trillion
+                market_cap_str = f"${market_cap/1e12:.2f}T"
+            elif market_cap >= 1e9:  # Billion
+                market_cap_str = f"${market_cap/1e9:.2f}B"
+            else:  # Million
+                market_cap_str = f"${market_cap/1e6:.2f}M"
+            st.metric("Market Cap", market_cap_str)
+        else:
+            st.metric("Market Cap", "N/A")
     
     with col3:
         volume = stock_info.get('volume', 'N/A')
-        if volume != 'N/A':
-            volume = f"{volume:,}"
-        st.metric("Volume", volume)
+        avg_volume = stock_info.get('averageVolume', 'N/A')
+        if volume != 'N/A' and avg_volume != 'N/A':
+            volume_change = ((volume - avg_volume) / avg_volume) * 100
+            st.metric(
+                "Volume",
+                f"{volume:,}",
+                f"{volume_change:+.2f}% vs Avg",
+                delta_color="normal"
+            )
+        else:
+            st.metric("Volume", "N/A")
     
     # Display chart
     st.plotly_chart(create_candlestick_chart(hist_data, symbol), use_container_width=True)
     
-    # Additional information
-    with st.expander("More Information"):
-        st.write(f"**Company:** {stock_info.get('longName', 'N/A')}")
-        st.write(f"**Sector:** {stock_info.get('sector', 'N/A')}")
-        st.write(f"**Industry:** {stock_info.get('industry', 'N/A')}")
-        st.write(f"**52 Week High:** ${stock_info.get('fiftyTwoWeekHigh', 'N/A'):,.2f}")
-        st.write(f"**52 Week Low:** ${stock_info.get('fiftyTwoWeekLow', 'N/A'):,.2f}")
-        st.write(f"**Beta:** {stock_info.get('beta', 'N/A')}")
-        st.write(f"**P/E Ratio:** {stock_info.get('trailingPE', 'N/A')}")
+    # Detailed Information Tabs
+    tab1, tab2, tab3 = st.tabs(["📊 Key Stats", "💼 Company Info", "📈 Technical Indicators"])
+    
+    with tab1:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write("**Trading Information**")
+            st.write(f"- Open: ${stock_info.get('open', 'N/A'):,.2f}")
+            st.write(f"- High: ${stock_info.get('dayHigh', 'N/A'):,.2f}")
+            st.write(f"- Low: ${stock_info.get('dayLow', 'N/A'):,.2f}")
+            st.write(f"- 52 Week High: ${stock_info.get('fiftyTwoWeekHigh', 'N/A'):,.2f}")
+            st.write(f"- 52 Week Low: ${stock_info.get('fiftyTwoWeekLow', 'N/A'):,.2f}")
+        with col2:
+            st.write("**Valuation Metrics**")
+            st.write(f"- P/E Ratio: {stock_info.get('trailingPE', 'N/A')}")
+            st.write(f"- Forward P/E: {stock_info.get('forwardPE', 'N/A')}")
+            st.write(f"- PEG Ratio: {stock_info.get('pegRatio', 'N/A')}")
+            st.write(f"- Beta: {stock_info.get('beta', 'N/A')}")
+            st.write(f"- EPS (TTM): ${stock_info.get('trailingEps', 'N/A')}")
+
+    with tab2:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write("**Company Profile**")
+            st.write(f"- Sector: {stock_info.get('sector', 'N/A')}")
+            st.write(f"- Industry: {stock_info.get('industry', 'N/A')}")
+            st.write(f"- Country: {stock_info.get('country', 'N/A')}")
+            st.write(f"- Employees: {stock_info.get('fullTimeEmployees', 'N/A'):,}")
+        with col2:
+            st.write("**Additional Information**")
+            st.write(f"- Website: {stock_info.get('website', 'N/A')}")
+            st.write(f"- Exchange: {stock_info.get('exchange', 'N/A')}")
+            st.write(f"- Currency: {stock_info.get('currency', 'N/A')}")
+
+    with tab3:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write("**Moving Averages**")
+            ma_50 = hist_data['Close'].rolling(window=50).mean().iloc[-1]
+            ma_200 = hist_data['Close'].rolling(window=200).mean().iloc[-1]
+            current_price = hist_data['Close'].iloc[-1]
+            
+            ma_50_status = "Above" if current_price > ma_50 else "Below"
+            ma_200_status = "Above" if current_price > ma_200 else "Below"
+            
+            st.write(f"- 50-day MA: ${ma_50:.2f} (Price is {ma_50_status})")
+            st.write(f"- 200-day MA: ${ma_200:.2f} (Price is {ma_200_status})")
         
+        with col2:
+            st.write("**Volume Analysis**")
+            avg_vol = hist_data['Volume'].mean()
+            current_vol = hist_data['Volume'].iloc[-1]
+            vol_ratio = current_vol / avg_vol
+            
+            st.write(f"- Average Volume: {avg_vol:,.0f}")
+            st.write(f"- Current/Avg Ratio: {vol_ratio:.2f}x")
+    
     return True
 
 # Main content
@@ -211,13 +287,18 @@ if user_question:
             # Get AI response and extracted symbol
             ai_response, symbol = get_ai_response(user_question)
             
-            # Display AI response
-            st.write("**AI Response:**", ai_response)
+            # Display AI response in a container with styling
+            with st.container():
+                st.markdown("### 🤖 AI Analysis")
+                st.write(ai_response)
             
-            # If we found a symbol, display stock details
+            # If we found a symbol, display detailed stock information
             if symbol:
-                st.success(f"📈 Showing data for ${symbol}")
+                st.success(f"📈 Detailed Analysis for ${symbol}")
                 display_stock_details(symbol)
+                
+                # Add a note about the data source
+                st.info("Data provided by Yahoo Finance. All prices are in USD unless otherwise noted.")
             
             # Add to chat history
             st.session_state.chat_history.append({
