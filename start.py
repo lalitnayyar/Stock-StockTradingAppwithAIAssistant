@@ -1,15 +1,29 @@
 import subprocess
-import sys
 import os
+import sys
 
 def main():
-    # Install dependencies
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
-    
-    # Run Streamlit
+    # Set environment variables
     os.environ["STREAMLIT_SERVER_PORT"] = "8501"
     os.environ["STREAMLIT_SERVER_ADDRESS"] = "0.0.0.0"
-    subprocess.check_call([sys.executable, "-m", "streamlit", "run", "app.py"])
+    os.environ["STREAMLIT_SERVER_HEADLESS"] = "true"
+    os.environ["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
+
+    # Install dependencies
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
+
+    # Run the Streamlit app
+    subprocess.run([
+        sys.executable, 
+        "-m", 
+        "streamlit",
+        "run",
+        "app.py",
+        "--server.port=8501",
+        "--server.address=0.0.0.0",
+        "--server.headless=true",
+        "--browser.gatherUsageStats=false"
+    ])
 
 if __name__ == "__main__":
     main()

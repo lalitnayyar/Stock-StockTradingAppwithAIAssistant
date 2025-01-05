@@ -1,6 +1,7 @@
 [server]
 port = 8501
 address = "0.0.0.0"
+headless = true
 enableCORS = true
 enableXsrfProtection = true
 maxUploadSize = 200
@@ -12,10 +13,10 @@ serverPort = 8501
 gatherUsageStats = false
 
 [theme]
-primaryColor = "#FF4B4B"
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F0F2F6"
-textColor = "#262730"
+primaryColor = "#E694FF"
+backgroundColor = "#00172B"
+secondaryBackgroundColor = "#0083B8"
+textColor = "#DCDCDC"
 font = "sans serif"
 
 [deprecation]
