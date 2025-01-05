@@ -364,6 +364,231 @@ If you encounter URL-related issues:
    - Check environment variables
    - Verify build command execution
 
+## Advanced Deployment Configuration
+
+For reliable deployment on Cloudflare Pages, the following configuration files are essential:
+
+1. **Build Requirements** (`requirements-build.txt`)
+   ```
+   streamlit==1.29.0
+   numpy==1.24.3
+   pandas==2.0.3
+   yfinance==0.2.33
+   plotly==5.18.0
+   deepseek-ai==0.1.0
+   python-dotenv==1.0.0
+   ```
+
+2. **Process Management** (`start.py`)
+   ```python
+   import subprocess
+   import os
+   import sys
+   import time
+
+   def main():
+       # Set environment variables
+       os.environ["STREAMLIT_SERVER_PORT"] = "8501"
+       os.environ["STREAMLIT_SERVER_ADDRESS"] = "0.0.0.0"
+       os.environ["STREAMLIT_SERVER_HEADLESS"] = "true"
+       os.environ["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
+       os.environ["STREAMLIT_SERVER_BASE_URL"] = "/_app"
+       os.environ["STREAMLIT_SERVER_ENABLE_CORS"] = "true"
+       os.environ["STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION"] = "false"
+
+       # Create public directory
+       if not os.path.exists("public"):
+           os.makedirs("public")
+
+       # Install dependencies
+       print("Installing dependencies...")
+       subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements-build.txt"])
+
+       # Run Streamlit
+       print("Starting Streamlit app...")
+       process = subprocess.Popen([
+           sys.executable,
+           "-m",
+           "streamlit",
+           "run",
+           "app.py",
+           "--server.port=8501",
+           "--server.address=0.0.0.0",
+           "--server.headless=true",
+           "--server.baseUrlPath=_app",
+           "--server.enableCORS=true",
+           "--server.enableXsrfProtection=false",
+           "--browser.gatherUsageStats=false"
+       ])
+
+       # Keep running
+       try:
+           while True:
+               time.sleep(1)
+       except KeyboardInterrupt:
+           process.terminate()
+           process.wait()
+
+   if __name__ == "__main__":
+       main()
+   ```
+
+3. **CORS and Security Headers** (`public/_headers`)
+   ```
+   /*
+     Access-Control-Allow-Origin: *
+     Access-Control-Allow-Methods: GET, POST, OPTIONS
+     Access-Control-Allow-Headers: *
+     X-Frame-Options: DENY
+     X-Content-Type-Options: nosniff
+     Referrer-Policy: no-referrer
+     Permissions-Policy: document-domain=()
+     Cache-Control: no-cache, no-store, must-revalidate
+
+   /_app/*
+     Access-Control-Allow-Origin: *
+     Access-Control-Allow-Methods: GET, POST, OPTIONS
+     Access-Control-Allow-Headers: *
+     Cache-Control: no-cache, no-store, must-revalidate
+   ```
+
+4. **Loading Page with Error Handling** (`public/index.html`)
+   ```html
+   <!DOCTYPE html>
+   <html>
+   <head>
+       <title>Stock Trading App</title>
+       <style>
+           body {
+               font-family: Arial, sans-serif;
+               background-color: #00172B;
+               color: #DCDCDC;
+           }
+           .container {
+               max-width: 600px;
+               margin: 50px auto;
+               text-align: center;
+           }
+           .error {
+               color: #ff6b6b;
+               margin-top: 20px;
+               display: none;
+           }
+           .spinner {
+               border: 4px solid #f3f3f3;
+               border-top: 4px solid #E694FF;
+               border-radius: 50%;
+               width: 40px;
+               height: 40px;
+               animation: spin 1s linear infinite;
+           }
+       </style>
+   </head>
+   <body>
+       <div class="container">
+           <h1>Stock Trading App</h1>
+           <div class="spinner"></div>
+           <div class="loading">Loading application...</div>
+           <div class="error">
+               Unable to connect. Retrying...
+               <div style="margin-top: 10px;">
+                   <button onclick="retryConnection()">Retry Now</button>
+               </div>
+           </div>
+       </div>
+       <script>
+           let retryCount = 0;
+           const maxRetries = 3;
+
+           function showError() {
+               document.querySelector('.spinner').style.display = 'none';
+               document.querySelector('.loading').style.display = 'none';
+               document.querySelector('.error').style.display = 'block';
+           }
+
+           function retryConnection() {
+               document.querySelector('.spinner').style.display = 'block';
+               document.querySelector('.loading').style.display = 'block';
+               document.querySelector('.error').style.display = 'none';
+               redirectToApp();
+           }
+
+           function redirectToApp() {
+               const currentPath = window.location.pathname;
+               if (!currentPath.includes('/_app')) {
+                   const baseUrl = window.location.origin;
+                   const targetUrl = baseUrl + '/_app';
+                   
+                   fetch(targetUrl)
+                       .then(response => {
+                           if (response.ok) {
+                               window.location.replace(targetUrl);
+                           } else {
+                               throw new Error('App not ready');
+                           }
+                       })
+                       .catch(error => {
+                           console.error('Error connecting to app:', error);
+                           retryCount++;
+                           if (retryCount < maxRetries) {
+                               setTimeout(redirectToApp, 2000);
+                           } else {
+                               showError();
+                           }
+                       });
+               }
+           }
+
+           setTimeout(redirectToApp, 1000);
+       </script>
+   </body>
+   </html>
+   ```
+
+### Deployment Troubleshooting
+
+1. **Loading Screen Issues**
+   - Clear browser cache
+   - Check browser console (F12) for errors
+   - Verify all configuration files are present
+   - Check Cloudflare Pages deployment logs
+
+2. **Connection Problems**
+   - The app will automatically retry 3 times
+   - Manual retry button available if all attempts fail
+   - Check if the app is accessible at `/_app` directly
+   - Verify environment variables in Cloudflare Pages settings
+
+3. **CORS and Security**
+   - Headers are configured for proper CORS support
+   - Security headers prevent common web vulnerabilities
+   - Caching is disabled to ensure fresh content
+   - XSRF protection is disabled for Cloudflare compatibility
+
+4. **Build Process**
+   - Uses specific package versions in `requirements-build.txt`
+   - Creates necessary directories automatically
+   - Proper process management with error handling
+   - Configures Streamlit for headless operation
+
+5. **URL Handling**
+   - Base URL is set to `/_app`
+   - Automatic redirection from root URL
+   - Prevents URL recursion issues
+   - Health check before redirecting
+
+6. **Environment Variables**
+   Make sure these are set in Cloudflare Pages:
+   ```
+   DEEPSEEK_API_KEY=your_api_key_here
+   PYTHON_VERSION=3.11
+   STREAMLIT_SERVER_PORT=8501
+   STREAMLIT_SERVER_ADDRESS=0.0.0.0
+   STREAMLIT_SERVER_HEADLESS=true
+   STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+   STREAMLIT_SERVER_BASE_URL=/_app
+   ```
+
 ## Installation
 
 1. Clone the repository:
