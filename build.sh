@@ -18,6 +18,19 @@ rm -rf build_output || true
 mkdir -p build_output
 mkdir -p build_output/static
 
+# Create streamlit-client.js
+echo "Creating streamlit-client.js..."
+cat > build_output/static/streamlit-client.js << EOL
+// Initialize Streamlit client
+window.addEventListener('load', function() {
+    const client = {
+        sendMessage: function() {},
+        onMessage: function() {}
+    };
+    window.streamlitClient = client;
+});
+EOL
+
 # Create index.html
 echo "Creating index.html..."
 cat > build_output/index.html << EOL
@@ -27,10 +40,7 @@ cat > build_output/index.html << EOL
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stock Trading App</title>
-    <script type="module">
-        import streamlit from 'https://cdn.jsdelivr.net/npm/streamlit-component-lib@^1.4.0/dist/streamlit.js';
-        window.streamlit = streamlit;
-    </script>
+    <script src="/static/streamlit-client.js"></script>
 </head>
 <body>
     <div id="root"></div>
@@ -74,6 +84,8 @@ enableXsrfProtection = false
 
 [browser]
 gatherUsageStats = false
+serverAddress = "localhost"
+serverPort = 8501
 
 [theme]
 base = "dark"
@@ -91,7 +103,7 @@ cat > build_output/_headers << EOL
   Access-Control-Allow-Origin: *
   Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS
   Access-Control-Allow-Headers: Content-Type, Authorization
-  Content-Security-Policy: default-src 'self' 'unsafe-inline' 'unsafe-eval' https:; connect-src 'self' https: ws:; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:;
+  Content-Security-Policy: default-src 'self' 'unsafe-inline' 'unsafe-eval' https:; connect-src 'self' https: ws: wss:; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:;
 EOL
 
 # Create worker.js
@@ -112,10 +124,27 @@ export default {
     try {
       const url = new URL(request.url);
       
+      // Serve static files
+      if (url.pathname.startsWith('/static/')) {
+        const response = await fetch(request);
+        if (response.ok) {
+          const newHeaders = new Headers(response.headers);
+          Object.entries(corsHeaders).forEach(([key, value]) => {
+            newHeaders.set(key, value);
+          });
+          return new Response(response.body, {
+            status: response.status,
+            headers: newHeaders
+          });
+        }
+      }
+
+      // Handle root path
       if (url.pathname === '/' || url.pathname === '/index.html') {
         return Response.redirect(\`\${url.origin}/app\`, 301);
       }
 
+      // Forward to Streamlit
       const streamlitUrl = \`http://127.0.0.1:8501\${url.pathname}\${url.search}\`;
       const response = await fetch(streamlitUrl, {
         method: request.method,
