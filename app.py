@@ -24,45 +24,125 @@ if 'chat_history' not in st.session_state:
 if 'last_symbol' not in st.session_state:
     st.session_state.last_symbol = None
 
+def get_ai_response(question):
+    """Get AI response and extract stock symbols"""
+    try:
+        # Get AI response
+        response = get_deepseek_response(question)
+        if not response:
+            return "I apologize, but I couldn't generate a response at the moment. Please try again.", None
+        
+        # Extract potential stock symbols
+        symbol = extract_stock_symbols(response)
+        
+        # If no symbol found in response, try question
+        if not symbol:
+            symbol = extract_stock_symbols(question)
+        
+        return response, symbol
+        
+    except Exception as e:
+        return f"Error: {str(e)}", None
+
 def extract_stock_symbols(text):
     """Extract stock symbols from text using regex patterns"""
     if not text:
         return None
     
-    # Common stock symbols and their patterns
+    # Common stock symbols and their patterns, ordered by priority
     patterns = [
         r'\$([A-Z]{1,5})\b',                     # $AAPL
-        r'ticker:?\s*([A-Z]{1,5})\b',            # ticker: AAPL or ticker AAPL
-        r'symbol:?\s*([A-Z]{1,5})\b',            # symbol: AAPL or symbol AAPL
-        r'\b([A-Z]{1,5})\s*(?:stock|shares)\b',  # AAPL stock or AAPL shares
+        r'ticker[:\s]+([A-Z]{1,5})\b',           # ticker: AAPL
+        r'symbol[:\s]+([A-Z]{1,5})\b',           # symbol: AAPL
+        r'\b([A-Z]{1,5})\s+(?:stock|shares)\b',  # AAPL stock
+        r'\b([A-Z]{1,5})\s+(?:Inc\.?|Corp\.?|Corporation|Company|Ltd\.?)\b',  # AAPL Inc
         r'\b([A-Z]{1,5})\b'                      # AAPL (standalone)
     ]
     
-    def validate_symbol(sym):
-        """Validate a single symbol"""
+    # Words that should not be treated as stock symbols
+    common_words = {
+        'A', 'AN', 'AND', 'ARE', 'AS', 'AT', 'BE', 'BY', 'FOR', 'FROM', 'HAS', 'HE',
+        'IN', 'IS', 'IT', 'ITS', 'OF', 'ON', 'OR', 'THAT', 'THE', 'TO', 'WAS',
+        'WERE', 'WILL', 'WITH', 'THE', 'ABOUT', 'ABOVE', 'AFTER', 'AGAIN', 'ALL',
+        'MOST', 'OTHER', 'SOME', 'SUCH', 'NO', 'NOR', 'NOT', 'ONLY', 'OWN', 'SAME',
+        'SO', 'THAN', 'TOO', 'VERY', 'CAN', 'WILL', 'JUST', 'SHOULD', 'NOW'
+    }
+    
+    def is_valid_symbol(sym):
+        """Check if a symbol is valid"""
+        if not sym or len(sym) < 2 or len(sym) > 5:
+            return False
+        if sym in common_words:
+            return False
         try:
-            is_valid, _ = validate_stock_symbol(sym)
-            return is_valid
+            ticker = yf.Ticker(sym)
+            info = ticker.info
+            if not info or not isinstance(info, dict):
+                return False
+            # Check if we have basic price information
+            if info.get('regularMarketPrice') or info.get('currentPrice'):
+                return True
+            return False
         except:
             return False
-
-    # First try to find symbols with stock-related context
-    for pattern in patterns[:-1]:  # Exclude standalone pattern initially
-        matches = re.finditer(pattern, text.upper())
+    
+    # Try each pattern in order of priority
+    text = text.upper()
+    for pattern in patterns:
+        matches = re.finditer(pattern, text)
         for match in matches:
             symbol = match.group(1).strip()
-            if validate_symbol(symbol):
+            if is_valid_symbol(symbol):
                 return symbol
     
-    # If no symbol found with context, try standalone symbols
-    matches = re.finditer(patterns[-1], text.upper())
-    for match in matches:
-        symbol = match.group(1).strip()
-        # Filter out common English words that might be mistaken for symbols
-        if len(symbol) > 1 and validate_symbol(symbol):
-            return symbol
-    
     return None
+
+def validate_stock_symbol(symbol):
+    """Validate if a stock symbol exists and is tradeable"""
+    try:
+        # Check if the input looks like a company name
+        suggestion = get_symbol_suggestions(symbol)
+        if suggestion:
+            return False, None, f"Did you mean ${suggestion}? Please use the stock symbol instead of the company name."
+        
+        # Check if it's a common word
+        if symbol.upper() in {
+            'A', 'AN', 'AND', 'ARE', 'AS', 'AT', 'BE', 'BY', 'FOR', 'FROM', 'HAS', 'HE',
+            'IN', 'IS', 'IT', 'ITS', 'OF', 'ON', 'OR', 'THAT', 'THE', 'TO', 'WAS',
+            'WERE', 'WILL', 'WITH', 'THE', 'ABOUT', 'ABOVE', 'AFTER', 'AGAIN', 'ALL',
+            'MOST', 'OTHER', 'SOME', 'SUCH', 'NO', 'NOR', 'NOT', 'ONLY', 'OWN', 'SAME',
+            'SO', 'THAN', 'TOO', 'VERY', 'CAN', 'WILL', 'JUST', 'SHOULD', 'NOW'
+        }:
+            return False, None, f"'{symbol}' appears to be a common word, not a stock symbol. Please enter a valid stock symbol (e.g., AAPL, MSFT, GOOGL)."
+        
+        ticker = yf.Ticker(symbol)
+        
+        # Try to get info first
+        info = ticker.info
+        if not info or not isinstance(info, dict):
+            return False, None, f"Could not find information for symbol ${symbol}. Please verify the symbol is correct."
+        
+        # If we have basic price information, consider it valid
+        if info.get('regularMarketPrice') or info.get('currentPrice'):
+            return True, info, None
+        
+        # Additional validation with historical data if needed
+        try:
+            hist = ticker.history(period="1mo")
+            if not hist.empty:
+                return True, info, None
+        except:
+            # If history check fails but we have price info, still consider it valid
+            if info.get('regularMarketPrice') or info.get('currentPrice'):
+                return True, info, None
+        
+        return False, None, f"Could not verify price data for ${symbol}. Please check if this is a valid, actively traded stock symbol."
+        
+    except Exception as e:
+        error_msg = str(e)
+        if "404" in error_msg:
+            return False, None, f"Symbol ${symbol} not found. Please verify the symbol is correct."
+        return False, None, f"Error validating symbol: {error_msg}"
 
 def get_stock_data(symbol, period='1y'):
     """Fetch stock data using yfinance"""
@@ -103,65 +183,32 @@ def create_candlestick_chart(df, symbol):
     
     return fig
 
-def get_ai_response(prompt):
-    """Get AI response for stock analysis"""
-    if not API_KEY or not API_URL:
-        return "AI analysis is currently unavailable. Please check back later.", None
+def get_symbol_suggestions(company_name):
+    """Get symbol suggestions for a company name"""
+    common_symbols = {
+        'TESLA': 'TSLA',
+        'APPLE': 'AAPL',
+        'MICROSOFT': 'MSFT',
+        'AMAZON': 'AMZN',
+        'GOOGLE': 'GOOGL',
+        'META': 'META',
+        'FACEBOOK': 'META',
+        'NETFLIX': 'NFLX',
+        'NVIDIA': 'NVDA',
+        'ALPHABET': 'GOOGL',
+    }
     
-    try:
-        # Extract any symbols from the user's question first
-        question_symbol = extract_stock_symbols(prompt)
-        
-        # Enhance prompt to get better stock-related responses
-        enhanced_prompt = (
-            "You are a financial analyst assistant. "
-            "Please analyze the following question and provide insights. "
-            "IMPORTANT: Always include stock symbols in your response using the format $SYMBOL (e.g., $AAPL for Apple). "
-            "If you mention any company, you must include its stock symbol. "
-            f"Question: {prompt}\n"
-            f"{'Note: The user mentioned ' + question_symbol + '.' if question_symbol else ''}"
-        )
-        
-        headers = {
-            "Authorization": f"Bearer {API_KEY}",
-            "Content-Type": "application/json"
-        }
-        
-        data = {
-            "model": "deepseek-chat",
-            "messages": [{"role": "user", "content": enhanced_prompt}],
-            "temperature": 0.7,
-            "max_tokens": 500
-        }
-        
-        response = requests.post(API_URL, headers=headers, json=data)
-        if response.status_code == 200:
-            ai_response = response.json()["choices"][0]["message"]["content"]
-            
-            # Try to extract symbol from AI response
-            symbol = extract_stock_symbols(ai_response)
-            
-            # If no symbol in AI response but found in question, use that
-            if not symbol and question_symbol:
-                symbol = question_symbol
-            
-            # Validate the symbol with yfinance
-            if symbol:
-                try:
-                    ticker = yf.Ticker(symbol)
-                    info = ticker.info
-                    if info and info.get('regularMarketPrice'):
-                        st.session_state.last_symbol = symbol
-                    else:
-                        symbol = None
-                except:
-                    symbol = None
-            
-            return ai_response, symbol
-            
-        return f"Error: {response.status_code}", None
-    except Exception as e:
-        return f"Error: {str(e)}", None
+    # Check for direct matches
+    company_name = company_name.upper()
+    if company_name in common_symbols:
+        return common_symbols[company_name]
+    
+    # Check for partial matches
+    for name, symbol in common_symbols.items():
+        if name in company_name or company_name in name:
+            return symbol
+    
+    return None
 
 def display_stock_details(symbol):
     """Display comprehensive stock details including chart and information"""
@@ -278,56 +325,6 @@ def display_stock_details(symbol):
         st.write(stock_info.get('longBusinessSummary', 'No description available.'))
     
     return True
-
-def get_symbol_suggestions(company_name):
-    """Get symbol suggestions for a company name"""
-    common_symbols = {
-        'TESLA': 'TSLA',
-        'APPLE': 'AAPL',
-        'MICROSOFT': 'MSFT',
-        'AMAZON': 'AMZN',
-        'GOOGLE': 'GOOGL',
-        'META': 'META',
-        'FACEBOOK': 'META',
-        'NETFLIX': 'NFLX',
-        'NVIDIA': 'NVDA',
-        'ALPHABET': 'GOOGL',
-    }
-    
-    # Check for direct matches
-    company_name = company_name.upper()
-    if company_name in common_symbols:
-        return common_symbols[company_name]
-    
-    # Check for partial matches
-    for name, symbol in common_symbols.items():
-        if name in company_name or company_name in name:
-            return symbol
-    
-    return None
-
-def validate_stock_symbol(symbol):
-    """Validate if a stock symbol exists and is tradeable"""
-    try:
-        # Check if the input looks like a company name
-        suggestion = get_symbol_suggestions(symbol)
-        if suggestion:
-            return False, None, f"Did you mean ${suggestion}? Please use the stock symbol instead of the company name."
-        
-        ticker = yf.Ticker(symbol)
-        # Try to get recent data to verify the symbol is valid
-        hist = ticker.history(period="1d")
-        info = ticker.info
-        
-        # Check if we got any historical data and basic info
-        if not hist.empty and info and isinstance(info, dict):
-            return True, info, None
-        return False, None, f"No data found for symbol ${symbol}. Please verify the symbol is correct."
-    except Exception as e:
-        error_msg = str(e)
-        if "404" in error_msg:
-            return False, None, f"Symbol ${symbol} not found. Please verify the symbol is correct."
-        return False, None, f"Error validating symbol: {error_msg}"
 
 # Main content
 st.title("Stock Trading Application")
