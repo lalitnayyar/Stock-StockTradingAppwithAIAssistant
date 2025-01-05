@@ -10,6 +10,9 @@ def main():
     os.environ["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
     os.environ["STREAMLIT_SERVER_ENABLE_CORS"] = "true"
     os.environ["STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION"] = "false"
+    os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = "none"
+    os.environ["STREAMLIT_SERVER_RUN_ON_SAVE"] = "false"
+    os.environ["STREAMLIT_THEME_BASE"] = "dark"
 
     # Create public directory if it doesn't exist
     if not os.path.exists("public"):
@@ -19,9 +22,9 @@ def main():
     print("Installing dependencies...")
     subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements-build.txt"])
 
-    # Run the Streamlit app
+    # Run the Streamlit app directly
     print("Starting Streamlit app...")
-    os.execv(sys.executable, [sys.executable, '-m', 'streamlit', 'run', 'app.py'])
+    subprocess.check_call([sys.executable, "-m", "streamlit", "run", "app.py", "--server.address", "0.0.0.0"])
 
 if __name__ == "__main__":
     main()
