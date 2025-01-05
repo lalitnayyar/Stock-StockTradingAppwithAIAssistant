@@ -1,22 +1,3 @@
-[server]
-port = 8501
-address = "0.0.0.0"
-maxUploadSize = 200
-enableCORS = true
-enableXsrfProtection = false  # Temporarily disable for debugging
-baseUrlPath = ""
-allowIframingFrom = ["*"]  # Allow embedding from any domain
-headless = true
-runOnSave = true
-cookieSecret = "your-secret-key-here"
-sslCertFile = ""
-sslKeyFile = ""
-
-[browser]
-serverAddress = "0.0.0.0"
-gatherUsageStats = false
-serverPort = 8501
-
 [theme]
 primaryColor = "#FF4B4B"
 backgroundColor = "#0E1117"
@@ -24,31 +5,17 @@ secondaryBackgroundColor = "#262730"
 textColor = "#FAFAFA"
 font = "sans serif"
 
-[deprecation]
-showPyplotGlobalUse = false
+[server]
+enableCORS = true
+enableXsrfProtection = false
+maxUploadSize = 200
+address = "0.0.0.0"
 
-[global]
-developmentMode = true
-showWarningOnDirectExecution = false
-disableWatchdogWarning = true
-
-[mapbox]
-token = ""
+[browser]
+gatherUsageStats = false
 
 [runner]
-magicEnabled = true
-installTracker = true
 fastReruns = true
-
-[client]
-showErrorDetails = true
-toolbarMode = "auto"
-caching = true
 
 [logger]
 level = "error"
-
-[server.cookieConfig]
-expiry_days = 30
-key = "streamlit_cookie"
-samesite = "Lax"

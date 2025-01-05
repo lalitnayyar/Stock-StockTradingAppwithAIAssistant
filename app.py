@@ -1,35 +1,19 @@
 import streamlit as st
-from streamlit.web import cli as stcli
-from streamlit.web.server.server import Server
-import os
-from streamlit.runtime.scriptrunner import get_script_run_ctx
 import yfinance as yf
 import pandas as pd
 import numpy as np
-import plotly.graph_objects as go
 from datetime import datetime, timedelta
-from streamlit_option_menu import option_menu
-import pandas_ta as ta
+import plotly.graph_objects as go
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Dropout
+from tensorflow.keras.layers import LSTM, Dense
 import warnings
 warnings.filterwarnings('ignore')
-
-def set_cookie_config():
-    """Configure cookie settings for the application"""
-    ctx = get_script_run_ctx()
-    if ctx is not None:
-        ctx.session_state.cookie_config = {
-            "expiry_days": 30,
-            "key": "streamlit_cookie",
-            "samesite": "Lax"
-        }
 
 # Page config
 st.set_page_config(
     page_title="Stock Trading App with AI Assistant",
-    page_icon="",
+    page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
     menu_items={
@@ -39,53 +23,12 @@ st.set_page_config(
     }
 )
 
-# Set cookie configuration
-set_cookie_config()
-
-# Add custom headers for CORS and cookies
-if Server.get_current() and Server.get_current()._server:
-    current_server = Server.get_current()._server
-    current_server.add_headers([
-        ("Access-Control-Allow-Origin", "*"),
-        ("Access-Control-Allow-Methods", "GET, POST, OPTIONS"),
-        ("Access-Control-Allow-Headers", "Content-Type"),
-        ("Access-Control-Allow-Credentials", "true"),
-        ("Set-Cookie", "SameSite=Lax; Secure; Path=/")
-    ])
-
-# Custom CSS
-st.markdown("""
-    <style>
-        .stApp {
-            max-width: 100%;
-            padding: 1rem;
-        }
-        .stPlotlyChart {
-            width: 100%;
-        }
-        .stProgress .st-bo {
-            background-color: #00ff00;
-        }
-        .css-1d391kg {
-            padding: 1rem;
-        }
-        .stSelectbox label, .stSlider label {
-            font-size: 1.1rem;
-            font-weight: 500;
-            color: #ffffff;
-        }
-        .stock-metric {
-            background-color: #262730;
-            padding: 1rem;
-            border-radius: 0.5rem;
-            margin: 0.5rem 0;
-        }
-        .stock-metric h3 {
-            margin: 0;
-            color: #ffffff;
-        }
-    </style>
-""", unsafe_allow_html=True)
+# Initialize session state for cookie management
+if 'cookie_manager' not in st.session_state:
+    st.session_state['cookie_manager'] = {
+        'session_id': datetime.now().strftime("%Y%m%d%H%M%S"),
+        'preferences': {}
+    }
 
 # Initialize session state
 if 'selected_stock' not in st.session_state:
@@ -249,9 +192,6 @@ def create_lstm_model(lookback):
     """Create and compile LSTM model"""
     model = Sequential([
         LSTM(50, return_sequences=True, input_shape=(lookback, 1)),
-        Dropout(0.2),
-        LSTM(50, return_sequences=False),
-        Dropout(0.2),
         Dense(1)
     ])
     
