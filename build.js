@@ -12,7 +12,7 @@ fs.mkdirSync(path.join('build_output', 'static'));
 const clientJs = `
 // Initialize Streamlit client
 (function() {
-    function initStreamlit() {
+    async function initStreamlit() {
         return new Promise((resolve, reject) => {
             const maxAttempts = 10;
             let attempts = 0;
@@ -36,6 +36,9 @@ const clientJs = `
                             },
                             onMessage: function(callback) {
                                 ws.onmessage = (event) => callback(JSON.parse(event.data));
+                            },
+                            close: function() {
+                                ws.close();
                             }
                         };
                         window.streamlitClient = client;
@@ -44,34 +47,35 @@ const clientJs = `
                     
                     ws.onerror = (error) => {
                         console.error('WebSocket error:', error);
-                        attempts++;
-                        if (attempts < maxAttempts) {
-                            console.log(\`Retrying connection (attempt \${attempts}/\${maxAttempts}) after \${backoffDelay}ms...\`);
-                            setTimeout(tryConnect, backoffDelay);
-                            // Exponential backoff with a maximum of 5 seconds
-                            backoffDelay = Math.min(backoffDelay * 1.5, 5000);
-                        } else {
-                            reject(new Error('Failed to connect to WebSocket after multiple attempts'));
-                        }
+                        ws.close();
                     };
 
-                    ws.onclose = () => {
-                        console.log('WebSocket connection closed');
+                    ws.onclose = (event) => {
+                        console.log('WebSocket connection closed:', event.code, event.reason);
                         if (!window.streamlitClient) {
                             attempts++;
                             if (attempts < maxAttempts) {
                                 console.log(\`Retrying connection (attempt \${attempts}/\${maxAttempts}) after \${backoffDelay}ms...\`);
                                 setTimeout(tryConnect, backoffDelay);
                                 backoffDelay = Math.min(backoffDelay * 1.5, 5000);
+                            } else {
+                                reject(new Error('Failed to connect to WebSocket after multiple attempts'));
+                                document.getElementById('loading').innerHTML = '<div class="error-message">Failed to connect to the server. Please check if the server is running and refresh the page.</div>';
                             }
                         }
                     };
                 } catch (error) {
                     console.error('Error initializing WebSocket:', error);
-                    reject(error);
+                    if (attempts < maxAttempts) {
+                        setTimeout(tryConnect, backoffDelay);
+                        backoffDelay = Math.min(backoffDelay * 1.5, 5000);
+                    } else {
+                        reject(error);
+                    }
                 }
             }
 
+            // Start connection attempt
             tryConnect();
         });
     }
@@ -80,7 +84,10 @@ const clientJs = `
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initStreamlit);
     } else {
-        initStreamlit();
+        initStreamlit().catch(error => {
+            console.error('Failed to initialize Streamlit:', error);
+            document.getElementById('loading').innerHTML = '<div class="error-message">Failed to initialize the application. Please refresh the page.</div>';
+        });
     }
 })();`;
 

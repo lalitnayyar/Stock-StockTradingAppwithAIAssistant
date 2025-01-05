@@ -17,22 +17,18 @@ format = "modules"
 type = "ESModule"
 globs = ["**/*.js"]
 
+[triggers]
+crons = []
+
+# Development environment
+[env.development]
+workers_dev = true
+vars = { STREAMLIT_SERVER_PORT = "8501" }
+
+# Production environment
 [env.production]
 workers_dev = true
-
-# Route configuration
-[[routes]]
-pattern = "/*"
-zone_name = "stock-stocktradingappwithaiassistant.pages.dev"
-
-# WebSocket configuration
-[wrangler]
-zone_id = "*"
-route = "*/*"
-
-[env.production.vars]
-STREAMLIT_SERVER_PORT = "8501"
-STREAMLIT_SERVER_ADDRESS = "0.0.0.0"
-STREAMLIT_SERVER_HEADLESS = "true"
-STREAMLIT_SERVER_ENABLE_CORS = "true"
-STREAMLIT_BROWSER_GATHER_USAGE_STATS = "false"
+vars = { STREAMLIT_SERVER_PORT = "8501" }
+routes = [
+  { pattern = "stock-stocktradingappwithaiassistant.pages.dev/*", zone_name = "pages.dev" }
+]

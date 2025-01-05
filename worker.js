@@ -17,19 +17,28 @@ export default {
       const url = new URL(request.url);
       
       // Handle WebSocket upgrade requests for /stream endpoint
-      if (request.headers.get('Upgrade') === 'websocket' && url.pathname === '/stream') {
-        const streamlitUrl = new URL('ws://127.0.0.1:8501/stream');
+      if (request.headers.get('Upgrade')?.toLowerCase() === 'websocket') {
+        // Forward WebSocket connection to Streamlit backend
+        const streamlitUrl = 'ws://127.0.0.1:8501/stream';
+        const upgradeHeader = request.headers.get('Upgrade');
+        const connectionHeader = request.headers.get('Connection');
+        const secWebSocketKey = request.headers.get('Sec-WebSocket-Key');
+        const secWebSocketProtocol = request.headers.get('Sec-WebSocket-Protocol');
+        const secWebSocketVersion = request.headers.get('Sec-WebSocket-Version');
         
-        // Forward the WebSocket request to Streamlit
-        return fetch(streamlitUrl.toString(), {
-          method: request.method,
-          headers: {
-            ...Object.fromEntries(request.headers),
-            'Host': '127.0.0.1:8501',
-            'Origin': 'http://127.0.0.1:8501',
-            'Upgrade': 'websocket',
-            'Connection': 'Upgrade'
-          },
+        const headers = new Headers({
+          'Upgrade': upgradeHeader,
+          'Connection': connectionHeader,
+          'Sec-WebSocket-Key': secWebSocketKey,
+          'Sec-WebSocket-Protocol': secWebSocketProtocol,
+          'Sec-WebSocket-Version': secWebSocketVersion,
+          'Host': '127.0.0.1:8501',
+          'Origin': 'http://127.0.0.1:8501'
+        });
+
+        return fetch(streamlitUrl, {
+          method: 'GET',
+          headers: headers,
           body: request.body
         });
       }
@@ -81,15 +90,6 @@ export default {
       Object.entries(corsHeaders).forEach(([key, value]) => {
         newHeaders.set(key, value);
       });
-
-      // Handle redirects
-      if (response.status === 301 || response.status === 302) {
-        const location = response.headers.get('Location');
-        if (location) {
-          const redirectUrl = new URL(location, url.origin);
-          newHeaders.set('Location', redirectUrl.toString());
-        }
-      }
 
       return new Response(response.body, {
         status: response.status,
