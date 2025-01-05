@@ -3,20 +3,20 @@ port = 8501
 address = "0.0.0.0"
 headless = true
 enableCORS = true
-enableXsrfProtection = false
+enableXsrfProtection = true
 maxUploadSize = 200
 runOnSave = true
 
 [browser]
-serverAddress = "0.0.0.0"
+serverAddress = "localhost"
 gatherUsageStats = false
 serverPort = 8501
 
 [theme]
-primaryColor = "#E694FF"
-backgroundColor = "#00172B"
-secondaryBackgroundColor = "#0083B8"
-textColor = "#DCDCDC"
+primaryColor = "#FF4B4B"
+backgroundColor = "#0E1117"
+secondaryBackgroundColor = "#262730"
+textColor = "#FAFAFA"
 font = "sans serif"
 
 [deprecation]
@@ -28,3 +28,11 @@ showWarningOnDirectExecution = false
 
 [mapbox]
 token = ""
+
+[runner]
+magicEnabled = true
+installTracker = true
+
+[client]
+showErrorDetails = true
+toolbarMode = "auto"

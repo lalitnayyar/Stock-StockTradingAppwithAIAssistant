@@ -202,6 +202,56 @@ To prevent URL recursion issues (multiple `/_app` in the URL), the following con
    serverPort = 8501
    ```
 
+## Streamlit Cloud Deployment Guide
+
+### Prerequisites
+1. A [Streamlit Cloud](https://streamlit.io/cloud) account
+2. A GitHub repository containing your app
+
+### Deployment Steps
+
+1. **Fork or Push to GitHub**
+   - Ensure your code is in a GitHub repository
+   - The repository should have:
+     - `app.py` (main application file)
+     - `requirements.txt` (dependencies)
+     - `.streamlit/config.toml` (configuration)
+
+2. **Deploy to Streamlit Cloud**
+   - Go to [share.streamlit.io](https://share.streamlit.io)
+   - Sign in with GitHub
+   - Click "New app"
+   - Select your repository, branch, and main file (`app.py`)
+   - Click "Deploy"
+
+3. **Environment Variables**
+   - No additional environment variables are required
+   - All packages are specified in `requirements.txt`
+
+4. **Deployment Configuration**
+   - Python version: 3.9+
+   - Memory: Standard (1GB)
+   - CPU: Standard (1 vCPU)
+
+### Troubleshooting
+If you encounter any issues:
+1. Check the deployment logs
+2. Verify all dependencies are in `requirements.txt`
+3. Ensure Python version compatibility
+4. Check resource usage (memory/CPU)
+
+### Security Notes
+- The app uses secure HTTPS connections
+- API keys and sensitive data are properly handled
+- CORS and security headers are configured
+- WebSocket connections are secured
+
+### Performance Optimization
+- Caching is implemented for data loading
+- Efficient data processing with pandas
+- Optimized chart rendering
+- Memory-efficient AI predictions
+
 ## Recent Updates and Improvements
 
 ### WebSocket Connection Improvements (January 5, 2025)

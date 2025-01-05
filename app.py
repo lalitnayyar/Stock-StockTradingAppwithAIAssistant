@@ -1,440 +1,443 @@
 import streamlit as st
 import yfinance as yf
+import pandas as pd
+import numpy as np
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
-import pandas as pd
-import os
-from dotenv import load_dotenv
-import requests
-import re
+from streamlit_option_menu import option_menu
+import pandas_ta as ta
+from sklearn.preprocessing import MinMaxScaler
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense, Dropout
+import warnings
+warnings.filterwarnings('ignore')
 
-# Load environment variables
-load_dotenv()
+# Page config
+st.set_page_config(
+    page_title="Stock Trading App with AI Assistant",
+    page_icon="📈",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# Configure page
-st.set_page_config(page_title="Stock StarLink AI App ", layout="wide")
-
-# Initialize API configuration
-API_KEY = os.getenv('DEEPSEEK_API_KEY')
-API_URL = "https://api.deepseek.com/v1/chat/completions" if API_KEY else None
+# Custom CSS
+st.markdown("""
+    <style>
+        .stApp {
+            max-width: 100%;
+            padding: 1rem;
+        }
+        .stPlotlyChart {
+            width: 100%;
+        }
+        .stProgress .st-bo {
+            background-color: #00ff00;
+        }
+        .css-1d391kg {
+            padding: 1rem;
+        }
+        .stSelectbox label, .stSlider label {
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: #ffffff;
+        }
+        .stock-metric {
+            background-color: #262730;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin: 0.5rem 0;
+        }
+        .stock-metric h3 {
+            margin: 0;
+            color: #ffffff;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
 # Initialize session state
-if 'chat_history' not in st.session_state:
-    st.session_state.chat_history = []
-if 'last_symbol' not in st.session_state:
-    st.session_state.last_symbol = None
+if 'selected_stock' not in st.session_state:
+    st.session_state.selected_stock = 'AAPL'
+if 'period' not in st.session_state:
+    st.session_state.period = '1y'
+if 'interval' not in st.session_state:
+    st.session_state.interval = '1d'
 
-def get_ai_response(question):
-    """Get AI response and extract stock symbols"""
+# Sidebar
+with st.sidebar:
+    selected = option_menu(
+        menu_title="Navigation",
+        options=["Stock Analysis", "AI Predictions", "Trading Signals"],
+        icons=["graph-up", "robot", "lightning"],
+        menu_icon="cast",
+        default_index=0,
+    )
+
+    st.sidebar.title('Stock Settings')
+    stock_symbol = st.sidebar.text_input('Enter Stock Symbol', value=st.session_state.selected_stock)
+    period = st.sidebar.selectbox('Select Period', 
+                                options=['1mo', '3mo', '6mo', '1y', '2y', '5y', 'max'],
+                                index=3)
+    interval = st.sidebar.selectbox('Select Interval',
+                                  options=['1d', '5d', '1wk', '1mo'],
+                                  index=0)
+
+    if stock_symbol:
+        st.session_state.selected_stock = stock_symbol.upper()
+        st.session_state.period = period
+        st.session_state.interval = interval
+
+def load_stock_data():
+    """Load stock data using yfinance"""
     try:
-        # Get AI response
-        response = get_deepseek_response(question)
-        if not response:
-            return "I apologize, but I couldn't generate a response at the moment. Please try again.", None
-        
-        # Extract potential stock symbols
-        symbol = extract_stock_symbols(response)
-        
-        # If no symbol found in response, try question
-        if not symbol:
-            symbol = extract_stock_symbols(question)
-        
-        return response, symbol
-        
-    except Exception as e:
-        return f"Error: {str(e)}", None
-
-def extract_stock_symbols(text):
-    """Extract stock symbols from text using regex patterns"""
-    if not text:
-        return None
-    
-    # Common stock symbols and their patterns, ordered by priority
-    patterns = [
-        r'\$([A-Z]{1,5})\b',                     # $AAPL
-        r'ticker[:\s]+([A-Z]{1,5})\b',           # ticker: AAPL
-        r'symbol[:\s]+([A-Z]{1,5})\b',           # symbol: AAPL
-        r'\b([A-Z]{1,5})\s+(?:stock|shares)\b',  # AAPL stock
-        r'\b([A-Z]{1,5})\s+(?:Inc\.?|Corp\.?|Corporation|Company|Ltd\.?)\b',  # AAPL Inc
-        r'\b([A-Z]{1,5})\b'                      # AAPL (standalone)
-    ]
-    
-    # Words that should not be treated as stock symbols
-    common_words = {
-        'A', 'AN', 'AND', 'ARE', 'AS', 'AT', 'BE', 'BY', 'FOR', 'FROM', 'HAS', 'HE',
-        'IN', 'IS', 'IT', 'ITS', 'OF', 'ON', 'OR', 'THAT', 'THE', 'TO', 'WAS',
-        'WERE', 'WILL', 'WITH', 'THE', 'ABOUT', 'ABOVE', 'AFTER', 'AGAIN', 'ALL',
-        'MOST', 'OTHER', 'SOME', 'SUCH', 'NO', 'NOR', 'NOT', 'ONLY', 'OWN', 'SAME',
-        'SO', 'THAN', 'TOO', 'VERY', 'CAN', 'WILL', 'JUST', 'SHOULD', 'NOW'
-    }
-    
-    def is_valid_symbol(sym):
-        """Check if a symbol is valid"""
-        if not sym or len(sym) < 2 or len(sym) > 5:
-            return False
-        if sym in common_words:
-            return False
-        try:
-            ticker = yf.Ticker(sym)
-            info = ticker.info
-            if not info or not isinstance(info, dict):
-                return False
-            # Check if we have basic price information
-            if info.get('regularMarketPrice') or info.get('currentPrice'):
-                return True
-            return False
-        except:
-            return False
-    
-    # Try each pattern in order of priority
-    text = text.upper()
-    for pattern in patterns:
-        matches = re.finditer(pattern, text)
-        for match in matches:
-            symbol = match.group(1).strip()
-            if is_valid_symbol(symbol):
-                return symbol
-    
-    return None
-
-def get_deepseek_response(prompt):
-    """Get AI response from DeepSeek API"""
-    if not API_KEY or not API_URL:
-        return None
-    
-    try:
-        # Enhance prompt to get better stock-related responses
-        enhanced_prompt = (
-            "You are a financial analyst assistant. "
-            "Please analyze the following question and provide insights. "
-            "IMPORTANT: Always include stock symbols in your response using the format $SYMBOL (e.g., $AAPL for Apple). "
-            "If you mention any company, you must include its stock symbol. "
-            f"Question: {prompt}"
-        )
-        
-        headers = {
-            "Authorization": f"Bearer {API_KEY}",
-            "Content-Type": "application/json"
-        }
-        
-        data = {
-            "model": "deepseek-chat",
-            "messages": [{"role": "user", "content": enhanced_prompt}],
-            "temperature": 0.7,
-            "max_tokens": 500
-        }
-        
-        response = requests.post(API_URL, headers=headers, json=data)
-        if response.status_code == 200:
-            return response.json()["choices"][0]["message"]["content"]
-        
-        print(f"API Error: {response.status_code} - {response.text}")
-        return None
-        
-    except Exception as e:
-        print(f"Error calling DeepSeek API: {str(e)}")
-        return None
-
-def validate_stock_symbol(symbol):
-    """Validate if a stock symbol exists and is tradeable"""
-    try:
-        # Check if the input looks like a company name
-        suggestion = get_symbol_suggestions(symbol)
-        if suggestion:
-            return False, None, f"Did you mean ${suggestion}? Please use the stock symbol instead of the company name."
-        
-        # Check if it's a common word
-        if symbol.upper() in {
-            'A', 'AN', 'AND', 'ARE', 'AS', 'AT', 'BE', 'BY', 'FOR', 'FROM', 'HAS', 'HE',
-            'IN', 'IS', 'IT', 'ITS', 'OF', 'ON', 'OR', 'THAT', 'THE', 'TO', 'WAS',
-            'WERE', 'WILL', 'WITH', 'THE', 'ABOUT', 'ABOVE', 'AFTER', 'AGAIN', 'ALL',
-            'MOST', 'OTHER', 'SOME', 'SUCH', 'NO', 'NOR', 'NOT', 'ONLY', 'OWN', 'SAME',
-            'SO', 'THAN', 'TOO', 'VERY', 'CAN', 'WILL', 'JUST', 'SHOULD', 'NOW'
-        }:
-            return False, None, f"'{symbol}' appears to be a common word, not a stock symbol. Please enter a valid stock symbol (e.g., AAPL, MSFT, GOOGL)."
-        
-        ticker = yf.Ticker(symbol)
-        
-        # Try to get info first
-        info = ticker.info
-        if not info or not isinstance(info, dict):
-            return False, None, f"Could not find information for symbol ${symbol}. Please verify the symbol is correct."
-        
-        # If we have basic price information, consider it valid
-        if info.get('regularMarketPrice') or info.get('currentPrice'):
-            return True, info, None
-        
-        # Additional validation with historical data if needed
-        try:
-            hist = ticker.history(period="1mo")
-            if not hist.empty:
-                return True, info, None
-        except:
-            # If history check fails but we have price info, still consider it valid
-            if info.get('regularMarketPrice') or info.get('currentPrice'):
-                return True, info, None
-        
-        return False, None, f"Could not verify price data for ${symbol}. Please check if this is a valid, actively traded stock symbol."
-        
-    except Exception as e:
-        error_msg = str(e)
-        if "404" in error_msg:
-            return False, None, f"Symbol ${symbol} not found. Please verify the symbol is correct."
-        return False, None, f"Error validating symbol: {error_msg}"
-
-def get_stock_data(symbol, period='1y'):
-    """Fetch stock data using yfinance"""
-    if not symbol:
-        return None, None
-    
-    try:
-        ticker = yf.Ticker(symbol)
-        info = ticker.info
-        if not info or 'regularMarketPrice' not in info:
+        stock = yf.Ticker(st.session_state.selected_stock)
+        data = stock.history(period=st.session_state.period, interval=st.session_state.interval)
+        if data.empty:
+            st.error(f"No data found for {st.session_state.selected_stock}")
             return None, None
-            
-        hist = ticker.history(period=period)
-        if hist.empty:
-            return None, None
-            
-        return hist, info
+        return stock, data
     except Exception as e:
-        st.error(f"Error fetching data for {symbol}: {str(e)}")
+        st.error(f"Error loading data: {str(e)}")
         return None, None
 
-def create_stock_chart(df, symbol):
-    """Create a candlestick chart using plotly"""
-    fig = go.Figure(data=[go.Candlestick(x=df.index,
-                                        open=df['Open'],
-                                        high=df['High'],
-                                        low=df['Low'],
-                                        close=df['Close'])])
+def calculate_technical_indicators(data):
+    """Calculate technical indicators"""
+    if data is None or data.empty:
+        return None
+    
+    df = data.copy()
+    
+    # RSI
+    df['RSI'] = ta.rsi(df['Close'], length=14)
+    
+    # MACD
+    macd = ta.macd(df['Close'])
+    df = pd.concat([df, macd], axis=1)
+    
+    # Bollinger Bands
+    bb = ta.bbands(df['Close'])
+    df = pd.concat([df, bb], axis=1)
+    
+    # Moving Averages
+    df['SMA_20'] = ta.sma(df['Close'], length=20)
+    df['EMA_20'] = ta.ema(df['Close'], length=20)
+    
+    return df
+
+def create_stock_chart(data, indicators):
+    """Create an interactive stock chart with technical indicators"""
+    if data is None or data.empty:
+        return None
+    
+    fig = go.Figure()
+    
+    # Candlestick chart
+    fig.add_trace(go.Candlestick(
+        x=data.index,
+        open=data['Open'],
+        high=data['High'],
+        low=data['Low'],
+        close=data['Close'],
+        name='OHLC'
+    ))
+    
+    # Add technical indicators
+    if indicators:
+        if 'SMA_20' in data.columns:
+            fig.add_trace(go.Scatter(
+                x=data.index,
+                y=data['SMA_20'],
+                name='SMA 20',
+                line=dict(color='orange')
+            ))
+        
+        if 'EMA_20' in data.columns:
+            fig.add_trace(go.Scatter(
+                x=data.index,
+                y=data['EMA_20'],
+                name='EMA 20',
+                line=dict(color='blue')
+            ))
+        
+        if 'BBL_20_2.0' in data.columns:
+            fig.add_trace(go.Scatter(
+                x=data.index,
+                y=data['BBL_20_2.0'],
+                name='BB Lower',
+                line=dict(color='gray', dash='dash')
+            ))
+            
+        if 'BBM_20_2.0' in data.columns:
+            fig.add_trace(go.Scatter(
+                x=data.index,
+                y=data['BBM_20_2.0'],
+                name='BB Middle',
+                line=dict(color='gray')
+            ))
+            
+        if 'BBU_20_2.0' in data.columns:
+            fig.add_trace(go.Scatter(
+                x=data.index,
+                y=data['BBU_20_2.0'],
+                name='BB Upper',
+                line=dict(color='gray', dash='dash')
+            ))
     
     fig.update_layout(
-        title=f'{symbol} Stock Price',
-        yaxis_title='Price (USD)',
+        title=f'{st.session_state.selected_stock} Stock Price',
+        yaxis_title='Price',
         xaxis_title='Date',
         template='plotly_dark',
-        height=600,
-        showlegend=False
+        height=800
     )
     
     return fig
 
-def get_symbol_suggestions(company_name):
-    """Get symbol suggestions for a company name"""
-    common_symbols = {
-        'TESLA': 'TSLA',
-        'APPLE': 'AAPL',
-        'MICROSOFT': 'MSFT',
-        'AMAZON': 'AMZN',
-        'GOOGLE': 'GOOGL',
-        'META': 'META',
-        'FACEBOOK': 'META',
-        'NETFLIX': 'NFLX',
-        'NVIDIA': 'NVDA',
-        'ALPHABET': 'GOOGL',
-    }
+def prepare_data_for_prediction(data, lookback=60):
+    """Prepare data for LSTM prediction"""
+    df = data['Close'].values.reshape(-1, 1)
+    scaler = MinMaxScaler()
+    df_scaled = scaler.fit_transform(df)
     
-    # Check for direct matches
-    company_name = company_name.upper()
-    if company_name in common_symbols:
-        return common_symbols[company_name]
+    X, y = [], []
+    for i in range(lookback, len(df_scaled)):
+        X.append(df_scaled[i-lookback:i])
+        y.append(df_scaled[i])
     
-    # Check for partial matches
-    for name, symbol in common_symbols.items():
-        if name in company_name or company_name in name:
-            return symbol
+    X = np.array(X)
+    y = np.array(y)
     
-    return None
-
-def display_stock_details(symbol):
-    """Display comprehensive stock details including chart and information"""
-    try:
-        # Validate symbol first
-        is_valid, info, error_msg = validate_stock_symbol(symbol)
-        if not is_valid:
-            st.error(error_msg)
-            return False
-            
-        # Create tabs for different types of information
-        tab1, tab2, tab3 = st.tabs(["📈 Chart", "📊 Key Stats", "📰 Company Info"])
-        
-        with tab1:
-            try:
-                # Get historical data
-                ticker = yf.Ticker(symbol)
-                hist = ticker.history(period='1y')
-                if not hist.empty:
-                    fig = create_stock_chart(hist, symbol)
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.warning("No historical data available for chart visualization.")
-            except Exception as e:
-                st.error(f"Error creating chart: {str(e)}")
-        
-        with tab2:
-            try:
-                if info:
-                    col1, col2 = st.columns(2)
-                    
-                    # Financial Metrics
-                    with col1:
-                        st.subheader("Financial Metrics")
-                        metrics = {
-                            "Market Cap": info.get("marketCap", "N/A"),
-                            "P/E Ratio": info.get("trailingPE", "N/A"),
-                            "EPS": info.get("trailingEps", "N/A"),
-                            "52W High": info.get("fiftyTwoWeekHigh", "N/A"),
-                            "52W Low": info.get("fiftyTwoWeekLow", "N/A"),
-                            "Volume": info.get("volume", "N/A")
-                        }
-                        
-                        for key, value in metrics.items():
-                            if isinstance(value, (int, float)):
-                                if key == "Market Cap":
-                                    value = f"${value:,.0f}"
-                                elif value > 1000000:
-                                    value = f"{value:,.2f}"
-                                else:
-                                    value = f"{value:.2f}"
-                            st.metric(key, value)
-                    
-                    # Trading Info
-                    with col2:
-                        st.subheader("Trading Information")
-                        trading_info = {
-                            "Current Price": info.get("currentPrice", info.get("regularMarketPrice", "N/A")),
-                            "Open": info.get("regularMarketOpen", "N/A"),
-                            "Previous Close": info.get("regularMarketPreviousClose", "N/A"),
-                            "Day High": info.get("regularMarketDayHigh", "N/A"),
-                            "Day Low": info.get("regularMarketDayLow", "N/A"),
-                            "Volume": info.get("regularMarketVolume", "N/A")
-                        }
-                        
-                        for key, value in trading_info.items():
-                            if isinstance(value, (int, float)):
-                                if key == "Volume":
-                                    value = f"{value:,.0f}"
-                                else:
-                                    value = f"${value:.2f}"
-                            st.metric(key, value)
-                else:
-                    st.warning("Detailed financial data not available.")
-            except Exception as e:
-                st.error(f"Error displaying financial metrics: {str(e)}")
-        
-        with tab3:
-            try:
-                if info:
-                    # Company Information
-                    st.subheader("Company Information")
-                    company_info = {
-                        "Name": info.get("longName", "N/A"),
-                        "Industry": info.get("industry", "N/A"),
-                        "Sector": info.get("sector", "N/A"),
-                        "Website": info.get("website", "N/A"),
-                        "Description": info.get("longBusinessSummary", "N/A")
-                    }
-                    
-                    for key, value in company_info.items():
-                        if key == "Description":
-                            st.markdown(f"**{key}:**")
-                            st.write(value)
-                        else:
-                            st.markdown(f"**{key}:** {value}")
-                else:
-                    st.warning("Company information not available.")
-            except Exception as e:
-                st.error(f"Error displaying company information: {str(e)}")
-        
-        return True
-        
-    except Exception as e:
-        st.error(f"Error displaying stock details: {str(e)}")
-        return False
-
-# Main content
-st.title("Stock Trading Application")
-
-# AI Chat Section
-st.header("AI Financial Assistant")
-user_question = st.text_input("Ask about any stock or company (e.g., 'Tell me about Apple stock' or 'What's happening with $TSLA'):")
-
-if user_question:
-    if not API_KEY:
-        st.warning("Please set up your API key in the .env file")
-    else:
-        with st.spinner('Analyzing your question...'):
-            # Get AI response and extracted symbol
-            ai_response, symbol = get_ai_response(user_question)
-            
-            # Display AI response in a container with styling
-            with st.container():
-                st.markdown("### 🤖 AI Analysis")
-                st.write(ai_response)
-            
-            # If we found a symbol, display detailed stock information
-            if symbol:
-                try:
-                    st.success(f"📈 Detailed Analysis for ${symbol}")
-                    if display_stock_details(symbol):
-                        st.info("Data provided by Yahoo Finance. All prices are in USD unless otherwise noted.")
-                    else:
-                        st.warning(f"Could not fetch detailed data for ${symbol}")
-                except Exception as e:
-                    st.error(f"Error displaying stock details: {str(e)}")
-            
-            # Add to chat history
-            st.session_state.chat_history.append({
-                "question": user_question,
-                "response": ai_response,
-                "symbol": symbol
-            })
-
-# Manual Stock Search
-with st.sidebar:
-    st.title("Manual Stock Search")
-    with st.form("stock_search_form"):
-        search_symbol = st.text_input("Enter Stock Symbol (e.g., AAPL):", key="manual_stock_search")
-        submit_button = st.form_submit_button("📊 Get Stock Report", use_container_width=True)
-        
-        if submit_button and search_symbol:
-            symbol = search_symbol.upper().strip()
-            try:
-                # Show loading spinner while fetching data
-                with st.spinner(f'Fetching data for ${symbol}...'):
-                    # Verify the symbol exists
-                    is_valid, info, error_msg = validate_stock_symbol(symbol)
-                    
-                    if is_valid:
-                        st.success(f"Found ${symbol} - {info.get('longName', '')}")
-                        if display_stock_details(symbol):
-                            st.session_state.last_symbol = symbol
-                            st.info("Data provided by Yahoo Finance. All prices are in USD unless otherwise noted.")
-                        else:
-                            st.warning(f"Could not fetch complete data for {symbol}. Please try again.")
-                    else:
-                        st.error(error_msg)
-            except Exception as e:
-                st.error(f"Error fetching data: {str(e)}")
+    train_size = int(len(X) * 0.8)
+    X_train, X_test = X[:train_size], X[train_size:]
+    y_train, y_test = y[:train_size], y[train_size:]
     
-    # Show recent searches
-    if hasattr(st.session_state, 'last_symbol') and st.session_state.last_symbol:
-        st.markdown("---")
-        st.markdown("### Recent Searches")
-        if st.button(f"📈 ${st.session_state.last_symbol}", key="recent_search"):
-            symbol = st.session_state.last_symbol
-            display_stock_details(symbol)
+    return X_train, X_test, y_train, y_test, scaler
 
-# Display chat history
-if st.session_state.chat_history:
-    st.markdown("---")
-    st.header("Previous Queries")
-    for i, chat in enumerate(reversed(st.session_state.chat_history[-5:])):  # Show last 5 conversations
-        with st.expander(f"Query {len(st.session_state.chat_history)-i}: {chat['question'][:50]}..."):
-            st.write("**Question:**", chat['question'])
-            st.write("**AI Response:**", chat['response'])
-            if chat['symbol']:
-                if st.button(f"📊 Show ${chat['symbol']} Details", key=f"history_{i}"):
-                    display_stock_details(chat['symbol'])
+def create_lstm_model(lookback):
+    """Create and compile LSTM model"""
+    model = Sequential([
+        LSTM(50, return_sequences=True, input_shape=(lookback, 1)),
+        Dropout(0.2),
+        LSTM(50, return_sequences=False),
+        Dropout(0.2),
+        Dense(1)
+    ])
+    
+    model.compile(optimizer='adam', loss='mse')
+    return model
+
+def predict_stock_prices(data, days_to_predict=30):
+    """Predict future stock prices using LSTM"""
+    lookback = 60
+    X_train, X_test, y_train, y_test, scaler = prepare_data_for_prediction(data, lookback)
+    
+    model = create_lstm_model(lookback)
+    model.fit(X_train, y_train, epochs=50, batch_size=32, verbose=0)
+    
+    # Prepare data for future prediction
+    last_sequence = data['Close'].values[-lookback:]
+    last_sequence = scaler.transform(last_sequence.reshape(-1, 1))
+    
+    future_predictions = []
+    current_sequence = last_sequence
+    
+    for _ in range(days_to_predict):
+        # Predict next value
+        next_pred = model.predict(current_sequence.reshape(1, lookback, 1), verbose=0)
+        future_predictions.append(next_pred[0])
+        
+        # Update sequence
+        current_sequence = np.roll(current_sequence, -1)
+        current_sequence[-1] = next_pred
+    
+    # Inverse transform predictions
+    future_predictions = scaler.inverse_transform(np.array(future_predictions))
+    
+    # Create future dates
+    last_date = data.index[-1]
+    future_dates = pd.date_range(start=last_date + timedelta(days=1), periods=days_to_predict, freq='B')
+    
+    return pd.Series(future_predictions.flatten(), index=future_dates)
+
+def main():
+    """Main application function"""
+    if selected == "Stock Analysis":
+        st.title('📈 Stock Analysis Dashboard')
+        
+        # Load data
+        stock, data = load_stock_data()
+        
+        if stock and data is not None:
+            # Display company info
+            info = stock.info
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric("Current Price", f"${data['Close'][-1]:.2f}", 
+                         f"{((data['Close'][-1] - data['Close'][-2])/data['Close'][-2]*100):.2f}%")
+            
+            with col2:
+                st.metric("Market Cap", f"${info.get('marketCap', 0)/1e9:.2f}B")
+            
+            with col3:
+                st.metric("Volume", f"{data['Volume'][-1]:,.0f}")
+            
+            # Calculate and display technical indicators
+            indicators = calculate_technical_indicators(data)
+            
+            # Create and display chart
+            fig = create_stock_chart(data, indicators)
+            if fig:
+                st.plotly_chart(fig, use_container_width=True)
+            
+            # Display technical indicators
+            if indicators is not None:
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.subheader("RSI")
+                    st.line_chart(indicators['RSI'])
+                
+                with col2:
+                    st.subheader("MACD")
+                    st.line_chart(indicators[['MACD_12_26_9', 'MACDs_12_26_9']])
+    
+    elif selected == "AI Predictions":
+        st.title('🤖 AI Stock Price Predictions')
+        
+        stock, data = load_stock_data()
+        
+        if stock and data is not None:
+            st.info("Training AI model... This may take a few moments.")
+            
+            # Make predictions
+            predictions = predict_stock_prices(data)
+            
+            # Create prediction chart
+            fig = go.Figure()
+            
+            # Historical data
+            fig.add_trace(go.Scatter(
+                x=data.index,
+                y=data['Close'],
+                name='Historical',
+                line=dict(color='blue')
+            ))
+            
+            # Predictions
+            fig.add_trace(go.Scatter(
+                x=predictions.index,
+                y=predictions.values,
+                name='Predicted',
+                line=dict(color='red', dash='dash')
+            ))
+            
+            fig.update_layout(
+                title=f'{st.session_state.selected_stock} Stock Price Prediction',
+                yaxis_title='Price',
+                xaxis_title='Date',
+                template='plotly_dark',
+                height=600
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Display prediction metrics
+            st.subheader("Prediction Metrics")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.metric("Predicted Price (30 days)", 
+                         f"${predictions.iloc[-1]:.2f}",
+                         f"{((predictions.iloc[-1] - data['Close'][-1])/data['Close'][-1]*100):.2f}%")
+            
+            with col2:
+                st.metric("Current Price", 
+                         f"${data['Close'][-1]:.2f}")
+    
+    elif selected == "Trading Signals":
+        st.title('⚡ Trading Signals')
+        
+        stock, data = load_stock_data()
+        
+        if stock and data is not None:
+            # Calculate indicators for signals
+            indicators = calculate_technical_indicators(data)
+            
+            if indicators is not None:
+                # Generate trading signals
+                signals = pd.DataFrame(index=data.index)
+                
+                # RSI Signals
+                signals['RSI_Signal'] = 'Hold'
+                signals.loc[indicators['RSI'] < 30, 'RSI_Signal'] = 'Buy'
+                signals.loc[indicators['RSI'] > 70, 'RSI_Signal'] = 'Sell'
+                
+                # MACD Signals
+                signals['MACD_Signal'] = 'Hold'
+                signals.loc[indicators['MACD_12_26_9'] > indicators['MACDs_12_26_9'], 'MACD_Signal'] = 'Buy'
+                signals.loc[indicators['MACD_12_26_9'] < indicators['MACDs_12_26_9'], 'MACD_Signal'] = 'Sell'
+                
+                # Bollinger Bands Signals
+                signals['BB_Signal'] = 'Hold'
+                signals.loc[data['Close'] < indicators['BBL_20_2.0'], 'BB_Signal'] = 'Buy'
+                signals.loc[data['Close'] > indicators['BBU_20_2.0'], 'BB_Signal'] = 'Sell'
+                
+                # Display current signals
+                st.subheader("Current Trading Signals")
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    st.metric("RSI Signal", signals['RSI_Signal'][-1])
+                with col2:
+                    st.metric("MACD Signal", signals['MACD_Signal'][-1])
+                with col3:
+                    st.metric("BB Signal", signals['BB_Signal'][-1])
+                
+                # Display signals history
+                st.subheader("Recent Trading Signals")
+                st.dataframe(signals.tail(10))
+                
+                # Plot signals on price chart
+                fig = go.Figure()
+                
+                fig.add_trace(go.Candlestick(
+                    x=data.index,
+                    open=data['Open'],
+                    high=data['High'],
+                    low=data['Low'],
+                    close=data['Close'],
+                    name='OHLC'
+                ))
+                
+                # Add buy signals
+                buy_signals = signals[signals['RSI_Signal'] == 'Buy'].index
+                fig.add_trace(go.Scatter(
+                    x=buy_signals,
+                    y=data.loc[buy_signals, 'Low'] * 0.99,
+                    mode='markers',
+                    marker=dict(symbol='triangle-up', size=15, color='green'),
+                    name='Buy Signal'
+                ))
+                
+                # Add sell signals
+                sell_signals = signals[signals['RSI_Signal'] == 'Sell'].index
+                fig.add_trace(go.Scatter(
+                    x=sell_signals,
+                    y=data.loc[sell_signals, 'High'] * 1.01,
+                    mode='markers',
+                    marker=dict(symbol='triangle-down', size=15, color='red'),
+                    name='Sell Signal'
+                ))
+                
+                fig.update_layout(
+                    title=f'{st.session_state.selected_stock} Trading Signals',
+                    yaxis_title='Price',
+                    xaxis_title='Date',
+                    template='plotly_dark',
+                    height=600
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+
+if __name__ == "__main__":
+    main()
