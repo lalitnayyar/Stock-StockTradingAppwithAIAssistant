@@ -161,114 +161,109 @@ def display_stock_details(symbol):
         st.error(f"Could not fetch data for {symbol}")
         return False
     
-    # Company Header
-    st.subheader(f"{stock_info.get('longName', symbol)} (${symbol})")
-    
-    # Key Metrics in columns
-    col1, col2, col3 = st.columns(3)
-    
+    # Company Header with Current Price
+    col1, col2 = st.columns([3, 1])
     with col1:
+        st.title(f"{stock_info.get('longName', symbol)} ({symbol})")
+    with col2:
         current_price = stock_info.get('regularMarketPrice', 'N/A')
         prev_close = stock_info.get('previousClose', 'N/A')
         if current_price != 'N/A' and prev_close != 'N/A':
             price_change = current_price - prev_close
             price_change_pct = (price_change / prev_close) * 100
-            delta_color = "green" if price_change >= 0 else "red"
-            st.metric(
-                "Current Price",
-                f"${current_price:,.2f}",
-                f"{price_change:+.2f} ({price_change_pct:+.2f}%)",
-                delta_color=delta_color
-            )
-        else:
-            st.metric("Current Price", "N/A")
+            price_color = "green" if price_change >= 0 else "red"
+            st.markdown(f"""
+                <div style='text-align: right'>
+                    <h2 style='margin: 0; color: {price_color}'>${current_price:.2f}</h2>
+                    <p style='margin: 0; color: {price_color}'>
+                        {price_change:+.2f} ({price_change_pct:+.2f}%)
+                    </p>
+                </div>
+            """, unsafe_allow_html=True)
+    
+    # Key Statistics Grid
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Previous Close", f"${prev_close:.2f}" if prev_close != 'N/A' else 'N/A')
+        st.metric("Open", f"${stock_info.get('open', 'N/A'):.2f}")
     
     with col2:
-        market_cap = stock_info.get('marketCap', 'N/A')
-        if market_cap != 'N/A':
-            if market_cap >= 1e12:  # Trillion
-                market_cap_str = f"${market_cap/1e12:.2f}T"
-            elif market_cap >= 1e9:  # Billion
-                market_cap_str = f"${market_cap/1e9:.2f}B"
-            else:  # Million
-                market_cap_str = f"${market_cap/1e6:.2f}M"
-            st.metric("Market Cap", market_cap_str)
-        else:
-            st.metric("Market Cap", "N/A")
+        st.metric("Day's Range", f"${stock_info.get('dayLow', 'N/A'):.2f} - ${stock_info.get('dayHigh', 'N/A'):.2f}")
+        st.metric("52 Week Range", f"${stock_info.get('fiftyTwoWeekLow', 'N/A'):.2f} - ${stock_info.get('fiftyTwoWeekHigh', 'N/A'):.2f}")
     
     with col3:
-        volume = stock_info.get('volume', 'N/A')
-        avg_volume = stock_info.get('averageVolume', 'N/A')
-        if volume != 'N/A' and avg_volume != 'N/A':
-            volume_change = ((volume - avg_volume) / avg_volume) * 100
-            st.metric(
-                "Volume",
-                f"{volume:,}",
-                f"{volume_change:+.2f}% vs Avg",
-                delta_color="normal"
-            )
+        market_cap = stock_info.get('marketCap', 'N/A')
+        if market_cap != 'N/A':
+            if market_cap >= 1e12:
+                market_cap_str = f"${market_cap/1e12:.2f}T"
+            elif market_cap >= 1e9:
+                market_cap_str = f"${market_cap/1e9:.2f}B"
+            else:
+                market_cap_str = f"${market_cap/1e6:.2f}M"
         else:
-            st.metric("Volume", "N/A")
+            market_cap_str = 'N/A'
+        st.metric("Market Cap", market_cap_str)
+        st.metric("Beta", f"{stock_info.get('beta', 'N/A'):.2f}")
+    
+    with col4:
+        st.metric("Volume", f"{stock_info.get('volume', 'N/A'):,}")
+        st.metric("Avg. Volume", f"{stock_info.get('averageVolume', 'N/A'):,}")
     
     # Display chart
     st.plotly_chart(create_candlestick_chart(hist_data, symbol), use_container_width=True)
     
-    # Detailed Information Tabs
-    tab1, tab2, tab3 = st.tabs(["📊 Key Stats", "💼 Company Info", "📈 Technical Indicators"])
+    # Company Information and Additional Metrics
+    tab1, tab2, tab3 = st.tabs(["📊 Financial Metrics", "🏢 Company Info", "📈 Additional Stats"])
     
     with tab1:
         col1, col2 = st.columns(2)
         with col1:
-            st.write("**Trading Information**")
-            st.write(f"- Open: ${stock_info.get('open', 'N/A'):,.2f}")
-            st.write(f"- High: ${stock_info.get('dayHigh', 'N/A'):,.2f}")
-            st.write(f"- Low: ${stock_info.get('dayLow', 'N/A'):,.2f}")
-            st.write(f"- 52 Week High: ${stock_info.get('fiftyTwoWeekHigh', 'N/A'):,.2f}")
-            st.write(f"- 52 Week Low: ${stock_info.get('fiftyTwoWeekLow', 'N/A'):,.2f}")
-        with col2:
-            st.write("**Valuation Metrics**")
-            st.write(f"- P/E Ratio: {stock_info.get('trailingPE', 'N/A')}")
+            st.markdown("### Valuation Metrics")
+            st.write(f"- P/E Ratio (TTM): {stock_info.get('trailingPE', 'N/A')}")
             st.write(f"- Forward P/E: {stock_info.get('forwardPE', 'N/A')}")
-            st.write(f"- PEG Ratio: {stock_info.get('pegRatio', 'N/A')}")
-            st.write(f"- Beta: {stock_info.get('beta', 'N/A')}")
             st.write(f"- EPS (TTM): ${stock_info.get('trailingEps', 'N/A')}")
-
+            st.write(f"- Forward EPS: ${stock_info.get('forwardEps', 'N/A')}")
+        with col2:
+            st.markdown("### Dividend Information")
+            st.write(f"- Dividend Rate: ${stock_info.get('dividendRate', 'N/A')}")
+            st.write(f"- Dividend Yield: {stock_info.get('dividendYield', 'N/A')}%")
+            st.write(f"- Ex-Dividend Date: {stock_info.get('exDividendDate', 'N/A')}")
+            st.write(f"- Payout Ratio: {stock_info.get('payoutRatio', 'N/A')}")
+    
     with tab2:
         col1, col2 = st.columns(2)
         with col1:
-            st.write("**Company Profile**")
+            st.markdown("### Company Profile")
             st.write(f"- Sector: {stock_info.get('sector', 'N/A')}")
             st.write(f"- Industry: {stock_info.get('industry', 'N/A')}")
-            st.write(f"- Country: {stock_info.get('country', 'N/A')}")
             st.write(f"- Employees: {stock_info.get('fullTimeEmployees', 'N/A'):,}")
+            st.write(f"- Country: {stock_info.get('country', 'N/A')}")
         with col2:
-            st.write("**Additional Information**")
+            st.markdown("### Additional Information")
             st.write(f"- Website: {stock_info.get('website', 'N/A')}")
+            st.write(f"- CEO: {stock_info.get('companyOfficers', [{}])[0].get('name', 'N/A')}")
+            st.write(f"- Founded: {stock_info.get('foundedYear', 'N/A')}")
             st.write(f"- Exchange: {stock_info.get('exchange', 'N/A')}")
-            st.write(f"- Currency: {stock_info.get('currency', 'N/A')}")
-
+    
     with tab3:
         col1, col2 = st.columns(2)
         with col1:
-            st.write("**Moving Averages**")
-            ma_50 = hist_data['Close'].rolling(window=50).mean().iloc[-1]
-            ma_200 = hist_data['Close'].rolling(window=200).mean().iloc[-1]
-            current_price = hist_data['Close'].iloc[-1]
-            
-            ma_50_status = "Above" if current_price > ma_50 else "Below"
-            ma_200_status = "Above" if current_price > ma_200 else "Below"
-            
-            st.write(f"- 50-day MA: ${ma_50:.2f} (Price is {ma_50_status})")
-            st.write(f"- 200-day MA: ${ma_200:.2f} (Price is {ma_200_status})")
-        
+            st.markdown("### Trading Statistics")
+            st.write(f"- 50-Day Moving Average: ${stock_info.get('fiftyDayAverage', 'N/A'):.2f}")
+            st.write(f"- 200-Day Moving Average: ${stock_info.get('twoHundredDayAverage', 'N/A'):.2f}")
+            st.write(f"- Short Ratio: {stock_info.get('shortRatio', 'N/A')}")
+            st.write(f"- Short % of Float: {stock_info.get('shortPercentOfFloat', 'N/A')}%")
         with col2:
-            st.write("**Volume Analysis**")
-            avg_vol = hist_data['Volume'].mean()
-            current_vol = hist_data['Volume'].iloc[-1]
-            vol_ratio = current_vol / avg_vol
-            
-            st.write(f"- Average Volume: {avg_vol:,.0f}")
-            st.write(f"- Current/Avg Ratio: {vol_ratio:.2f}x")
+            st.markdown("### Price Targets")
+            st.write(f"- Analyst Target Price: ${stock_info.get('targetMeanPrice', 'N/A'):.2f}")
+            st.write(f"- Target High: ${stock_info.get('targetHighPrice', 'N/A'):.2f}")
+            st.write(f"- Target Low: ${stock_info.get('targetLowPrice', 'N/A'):.2f}")
+            st.write(f"- Number of Analysts: {stock_info.get('numberOfAnalystOpinions', 'N/A')}")
+    
+    # Company Description
+    with st.expander("📝 Company Description"):
+        st.write(stock_info.get('longBusinessSummary', 'No description available.'))
     
     return True
 
