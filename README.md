@@ -162,7 +162,45 @@ A modern, interactive stock trading application built with Streamlit that provid
   - API failure handling
   - Data validation
 
-This tech stack was chosen for its reliability, performance, and seamless integration capabilities, making the Stock StarLink AI App a robust and scalable solution for stock market analysis and AI-powered trading insights.
+### URL Routing and Redirection
+
+To prevent URL recursion issues (multiple `/_app` in the URL), the following configuration is used:
+
+1. **Index Page Redirection**
+   ```html
+   <script>
+       function redirectToApp() {
+           const currentPath = window.location.pathname;
+           // Only redirect if we're not already at /_app
+           if (!currentPath.includes('/_app')) {
+               const baseUrl = window.location.origin;
+               window.location.replace(baseUrl + '/_app');
+           }
+       }
+       setTimeout(redirectToApp, 1000);
+   </script>
+   ```
+
+2. **Cloudflare Pages Routing Rules** (`public/_redirects`)
+   ```
+   /_app/* /_app 200!
+   /* /_app 200!
+   ```
+   - First rule handles all paths under `/_app`
+   - Second rule redirects everything else to `/_app`
+   - The `!` ensures the rules are applied without further processing
+
+3. **Streamlit Base URL Configuration**
+   ```toml
+   [server]
+   baseUrlPath = "_app"
+   enableXsrfProtection = false
+   
+   [browser]
+   serverAddress = "0.0.0.0"
+   gatherUsageStats = false
+   serverPort = 8501
+   ```
 
 ## Deployment Guide
 
@@ -305,6 +343,26 @@ This tech stack was chosen for its reliability, performance, and seamless integr
    - Production (Cloudflare Pages):
      - App runs on: `https://your-project.pages.dev/_app`
      - Environment variables from Cloudflare Pages settings
+
+## Troubleshooting URL Issues
+
+If you encounter URL-related issues:
+
+1. **Multiple `/_app` in URL**
+   - Clear browser cache
+   - Access the base URL: `https://your-project.pages.dev`
+   - The redirect script will handle the routing
+
+2. **Blank Page or Loading Issues**
+   - Check browser console for errors
+   - Verify Cloudflare Pages build logs
+   - Ensure all configuration files are present
+   - Try accessing `/_app` directly
+
+3. **Connection Issues**
+   - Wait for deployment to complete
+   - Check environment variables
+   - Verify build command execution
 
 ## Installation
 
