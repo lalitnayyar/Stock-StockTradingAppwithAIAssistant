@@ -46,6 +46,124 @@ A modern, interactive stock trading application built with Streamlit that provid
 - Expandable information panels
 - Comprehensive stock details
 
+## Technologies Used
+
+### Frontend
+- **Streamlit**: v1.29.0
+  - Modern Python framework for creating web applications
+  - Interactive widgets and components
+  - Responsive layout system
+  - Real-time data updates
+  - Built-in caching mechanism
+
+### Data Visualization
+- **Plotly**: v5.18.0
+  - Interactive financial charts
+  - Candlestick patterns
+  - Custom chart layouts
+  - Real-time data plotting
+
+### AI Integration
+- **Deepseek AI**
+  - Advanced language model for financial analysis
+  - Natural language processing
+  - Real-time stock recommendations
+  - Market trend analysis
+
+### Data Sources
+- **Yahoo Finance (yfinance)**: v0.2.33
+  - Real-time stock data
+  - Historical price information
+  - Company fundamentals
+  - Market indicators
+
+### Backend & Utilities
+- **Python**: v3.11.0
+  - Core programming language
+  - Asynchronous operations
+  - Data processing
+  - API integrations
+
+- **Pandas**: v2.1.4
+  - Data manipulation
+  - Time series analysis
+  - Statistical calculations
+  - DataFrame operations
+
+- **NumPy**: v1.24.3
+  - Numerical computations
+  - Array operations
+  - Mathematical functions
+  - Statistical analysis
+
+### API & Networking
+- **Requests**: v2.31.0
+  - HTTP client
+  - API communications
+  - Data fetching
+  - Error handling
+
+### Environment & Configuration
+- **Python-dotenv**: v1.0.0
+  - Environment variable management
+  - Secure configuration
+  - API key storage
+  - Development/production settings
+
+### Version Control & Deployment
+- **Git**
+  - Source code management
+  - Version tracking
+  - Collaborative development
+  - Deployment automation
+
+- **Cloudflare Pages**
+  - Web hosting
+  - Continuous deployment
+  - SSL/TLS security
+  - Global CDN distribution
+
+### Development Tools
+- **VS Code** (Recommended IDE)
+  - Python integration
+  - Git integration
+  - Debugging tools
+  - Extension support
+
+### Key Features Implementation
+- **Session State Management**
+  - User preferences storage
+  - Symbol tracking
+  - State persistence
+  - Cross-page data sharing
+
+- **Responsive Design**
+  - Mobile-friendly layout
+  - Adaptive charts
+  - Flexible components
+  - Cross-browser compatibility
+
+- **Real-time Processing**
+  - Live stock updates
+  - Instant AI responses
+  - Dynamic chart updates
+  - Automated symbol detection
+
+### Security Features
+- **Environment Variables**
+  - Secure API key storage
+  - Configuration management
+  - Deployment variables
+  - Access control
+
+- **Error Handling**
+  - Graceful error recovery
+  - User-friendly messages
+  - API failure handling
+  - Data validation
+
+This tech stack was chosen for its reliability, performance, and seamless integration capabilities, making the Stock StarLink AI App a robust and scalable solution for stock market analysis and AI-powered trading insights.
+
 ## Installation
 
 1. Clone the repository:
