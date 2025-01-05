@@ -1,0 +1,9 @@
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  Permissions-Policy: document-domain=()
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/_app/*
+  Cache-Control: no-cache, no-store, must-revalidate

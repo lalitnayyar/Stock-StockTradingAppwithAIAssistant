@@ -2,22 +2,53 @@
 <html>
 <head>
     <title>Stock Trading App</title>
-    <script>
-        // Get the current hostname and protocol
-        const hostname = window.location.hostname;
-        const protocol = window.location.protocol;
-        
-        // If we're on localhost, redirect to port 8501
-        if (hostname === 'localhost' || hostname === '127.0.0.1') {
-            window.location.href = `${protocol}//${hostname}:8501`;
-        } else {
-            // For Cloudflare Pages, redirect to the deployed URL
-            window.location.href = `${protocol}//${hostname}/_app`;
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #00172B;
+            color: #DCDCDC;
         }
-    </script>
+        .container {
+            max-width: 600px;
+            margin: 50px auto;
+            text-align: center;
+        }
+        .loading {
+            margin-top: 20px;
+            font-size: 18px;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #E694FF;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
 </head>
 <body>
-    <h1>Redirecting to Stock Trading App...</h1>
-    <p>If you are not redirected automatically, please wait a few moments.</p>
+    <div class="container">
+        <h1>Stock Trading App</h1>
+        <div class="spinner"></div>
+        <div class="loading">Loading application...</div>
+    </div>
+    <script>
+        function redirectToApp() {
+            const currentUrl = window.location.href;
+            const baseUrl = currentUrl.split('?')[0]; // Remove any query parameters
+            const targetUrl = baseUrl.replace(/\/?$/, '/_app'); // Ensure proper path joining
+            window.location.replace(targetUrl);
+        }
+        // Redirect after a short delay to ensure the loading animation is shown
+        setTimeout(redirectToApp, 1000);
+    </script>
 </body>
 </html>

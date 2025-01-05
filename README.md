@@ -266,7 +266,15 @@ Example questions:
    2. Add the following variables:
       ```
       DEEPSEEK_API_KEY=your_api_key_here
+      PYTHON_VERSION=3.11
+      STREAMLIT_SERVER_PORT=8501
+      STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      STREAMLIT_SERVER_HEADLESS=true
+      STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+      STREAMLIT_SERVER_BASE_URL=/_app
       ```
+
+   Note: Make sure to replace `your_api_key_here` with your actual DeepSeek API key.
 
 4. **Advanced Build Settings**
    In your project's Settings > Builds & deployments:

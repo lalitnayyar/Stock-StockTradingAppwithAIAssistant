@@ -4,9 +4,10 @@ address = "0.0.0.0"
 headless = true
 baseUrlPath = "_app"
 enableCORS = true
-enableXsrfProtection = true
+enableXsrfProtection = false
 maxUploadSize = 200
 maxMessageSize = 200
+runOnSave = true
 
 [browser]
 serverAddress = "0.0.0.0"
@@ -26,4 +27,4 @@ showfileUploaderEncoding = false
 
 [global]
 developmentMode = false
-showWarningOnDirectExecution = true
+showWarningOnDirectExecution = false
