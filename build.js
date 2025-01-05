@@ -16,6 +16,7 @@ const clientJs = `
         return new Promise((resolve, reject) => {
             const maxAttempts = 10;
             let attempts = 0;
+            let backoffDelay = 1000; // Start with 1 second delay
 
             function tryConnect() {
                 try {
@@ -45,10 +46,24 @@ const clientJs = `
                         console.error('WebSocket error:', error);
                         attempts++;
                         if (attempts < maxAttempts) {
-                            console.log(\`Retrying connection (attempt \${attempts}/\${maxAttempts})...\`);
-                            setTimeout(tryConnect, 1000);
+                            console.log(\`Retrying connection (attempt \${attempts}/\${maxAttempts}) after \${backoffDelay}ms...\`);
+                            setTimeout(tryConnect, backoffDelay);
+                            // Exponential backoff with a maximum of 5 seconds
+                            backoffDelay = Math.min(backoffDelay * 1.5, 5000);
                         } else {
                             reject(new Error('Failed to connect to WebSocket after multiple attempts'));
+                        }
+                    };
+
+                    ws.onclose = () => {
+                        console.log('WebSocket connection closed');
+                        if (!window.streamlitClient) {
+                            attempts++;
+                            if (attempts < maxAttempts) {
+                                console.log(\`Retrying connection (attempt \${attempts}/\${maxAttempts}) after \${backoffDelay}ms...\`);
+                                setTimeout(tryConnect, backoffDelay);
+                                backoffDelay = Math.min(backoffDelay * 1.5, 5000);
+                            }
                         }
                     };
                 } catch (error) {

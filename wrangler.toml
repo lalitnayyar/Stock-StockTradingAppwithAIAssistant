@@ -19,7 +19,16 @@ globs = ["**/*.js"]
 
 [env.production]
 workers_dev = true
-route = "stock-stocktradingappwithaiassistant.pages.dev/*"
+
+# Route configuration
+[[routes]]
+pattern = "/*"
+zone_name = "stock-stocktradingappwithaiassistant.pages.dev"
+
+# WebSocket configuration
+[wrangler]
+zone_id = "*"
+route = "*/*"
 
 [env.production.vars]
 STREAMLIT_SERVER_PORT = "8501"
