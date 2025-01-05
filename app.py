@@ -16,7 +16,7 @@ st.set_page_config(page_title="Stock StarLink AI App ", layout="wide")
 
 # Initialize API configuration
 API_KEY = os.getenv('DEEPSEEK_API_KEY')
-API_URL = "https://api.deepseek.com/v1/chat/completions"
+API_URL = "https://api.deepseek.com/v1/chat/completions" if API_KEY else None
 
 # Initialize session state for stock symbol and auto search
 if 'last_mentioned_symbol' not in st.session_state:
@@ -73,37 +73,30 @@ def create_candlestick_chart(df):
     return fig
 
 def get_ai_response(prompt):
-    """Get AI response using Deepseek API"""
+    """Get AI response for stock analysis"""
+    if not API_KEY or not API_URL:
+        return "AI analysis is currently unavailable. Please check back later."
+        
     try:
         headers = {
             "Authorization": f"Bearer {API_KEY}",
             "Content-Type": "application/json"
         }
         
-        payload = {
+        data = {
             "model": "deepseek-chat",
-            "messages": [
-                {"role": "system", "content": "You are a helpful financial advisor. When discussing stocks, always mention the stock symbol in the format: $SYMBOL"},
-                {"role": "user", "content": prompt}
-            ],
+            "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.7,
             "max_tokens": 500
         }
         
-        response = requests.post(API_URL, headers=headers, json=payload)
-        response.raise_for_status()
-        result = response.json()
-        response_text = result['choices'][0]['message']['content']
-        
-        # Extract stock symbol if present
-        symbol = extract_stock_symbols(response_text)
-        if symbol:
-            st.session_state.last_mentioned_symbol = symbol
-            st.session_state.auto_search_symbol = True  # Set flag to trigger auto search
-        
-        return response_text
+        response = requests.post(API_URL, headers=headers, json=data)
+        if response.status_code == 200:
+            return response.json()["choices"][0]["message"]["content"]
+        else:
+            return f"Error getting AI analysis. Status code: {response.status_code}"
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"Error during AI analysis: {str(e)}"
 
 def display_stock_details(symbol):
     """Display stock details including chart and information"""
