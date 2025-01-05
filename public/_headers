@@ -1,4 +1,7 @@
 /*
+  Access-Control-Allow-Origin: *
+  Access-Control-Allow-Methods: GET, POST, OPTIONS
+  Access-Control-Allow-Headers: *
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: no-referrer
@@ -6,4 +9,7 @@
   Cache-Control: no-cache, no-store, must-revalidate
 
 /_app/*
+  Access-Control-Allow-Origin: *
+  Access-Control-Allow-Methods: GET, POST, OPTIONS
+  Access-Control-Allow-Headers: *
   Cache-Control: no-cache, no-store, must-revalidate

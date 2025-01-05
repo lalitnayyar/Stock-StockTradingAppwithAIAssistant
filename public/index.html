@@ -19,6 +19,11 @@
             margin-top: 20px;
             font-size: 18px;
         }
+        .error {
+            color: #ff6b6b;
+            margin-top: 20px;
+            display: none;
+        }
         .spinner {
             border: 4px solid #f3f3f3;
             border-top: 4px solid #E694FF;
@@ -39,17 +44,58 @@
         <h1>Stock Trading App</h1>
         <div class="spinner"></div>
         <div class="loading">Loading application...</div>
+        <div class="error">
+            Unable to connect. Retrying...
+            <div style="margin-top: 10px;">
+                <button onclick="retryConnection()">Retry Now</button>
+            </div>
+        </div>
     </div>
     <script>
+        let retryCount = 0;
+        const maxRetries = 3;
+
+        function showError() {
+            document.querySelector('.spinner').style.display = 'none';
+            document.querySelector('.loading').style.display = 'none';
+            document.querySelector('.error').style.display = 'block';
+        }
+
+        function retryConnection() {
+            document.querySelector('.spinner').style.display = 'block';
+            document.querySelector('.loading').style.display = 'block';
+            document.querySelector('.error').style.display = 'none';
+            redirectToApp();
+        }
+
         function redirectToApp() {
             const currentPath = window.location.pathname;
-            // Only redirect if we're not already at /_app
             if (!currentPath.includes('/_app')) {
                 const baseUrl = window.location.origin;
-                window.location.replace(baseUrl + '/_app');
+                const targetUrl = baseUrl + '/_app';
+                
+                // Try to fetch the app to check if it's ready
+                fetch(targetUrl)
+                    .then(response => {
+                        if (response.ok) {
+                            window.location.replace(targetUrl);
+                        } else {
+                            throw new Error('App not ready');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error connecting to app:', error);
+                        retryCount++;
+                        if (retryCount < maxRetries) {
+                            setTimeout(redirectToApp, 2000); // Retry after 2 seconds
+                        } else {
+                            showError();
+                        }
+                    });
             }
         }
-        // Redirect after a short delay to ensure the loading animation is shown
+
+        // Start the redirect process
         setTimeout(redirectToApp, 1000);
     </script>
 </body>
