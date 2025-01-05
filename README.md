@@ -19,7 +19,7 @@ A modern, interactive stock trading application built with Streamlit that provid
 - Price trends with Open, High, Low, and Close values
 - Responsive chart design that adapts to screen size
 
-### 3. AI Financial Assistant with Smart Symbol Detection
+### 3. AI Financial Assistant with Smart Symbol Detectionf
 - Powered by Deepseek's AI model
 - Intelligent stock symbol extraction from conversations
 - Automatic search field population with mentioned symbols
