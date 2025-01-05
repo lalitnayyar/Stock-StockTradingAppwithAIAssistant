@@ -2,6 +2,7 @@
 port = 8501
 address = "0.0.0.0"
 headless = true
+baseUrlPath = "_app"
 enableCORS = true
 enableXsrfProtection = true
 maxUploadSize = 200
@@ -20,6 +21,7 @@ textColor = "#DCDCDC"
 font = "sans serif"
 
 [deprecation]
+showPyplotGlobalUse = false
 showfileUploaderEncoding = false
 
 [global]

@@ -1,10 +1,23 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Stock StarLink AI App</title>
-    <meta http-equiv="refresh" content="0;url=http://localhost:8501">
+    <title>Stock Trading App</title>
+    <script>
+        // Get the current hostname and protocol
+        const hostname = window.location.hostname;
+        const protocol = window.location.protocol;
+        
+        // If we're on localhost, redirect to port 8501
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+            window.location.href = `${protocol}//${hostname}:8501`;
+        } else {
+            // For Cloudflare Pages, redirect to the deployed URL
+            window.location.href = `${protocol}//${hostname}/_app`;
+        }
+    </script>
 </head>
 <body>
-    <p>Redirecting to Streamlit app...</p>
+    <h1>Redirecting to Stock Trading App...</h1>
+    <p>If you are not redirected automatically, please wait a few moments.</p>
 </body>
 </html>
