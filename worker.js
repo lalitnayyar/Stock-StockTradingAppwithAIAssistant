@@ -4,7 +4,15 @@ export default {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': '*',
+      'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload'
     };
+
+    // Redirect HTTP to HTTPS
+    const url = new URL(request.url);
+    if (url.protocol === 'http:') {
+      url.protocol = 'https:';
+      return Response.redirect(url.toString(), 301);
+    }
 
     // Handle CORS preflight requests
     if (request.method === 'OPTIONS') {
@@ -14,12 +22,10 @@ export default {
     }
 
     try {
-      const url = new URL(request.url);
-      
       // Handle WebSocket upgrade requests for /stream endpoint
       if (request.headers.get('Upgrade')?.toLowerCase() === 'websocket') {
         // Forward WebSocket connection to Streamlit backend
-        const streamlitUrl = 'ws://127.0.0.1:8501/stream';
+        const streamlitUrl = 'wss://127.0.0.1:8501/stream';
         const upgradeHeader = request.headers.get('Upgrade');
         const connectionHeader = request.headers.get('Connection');
         const secWebSocketKey = request.headers.get('Sec-WebSocket-Key');
@@ -33,7 +39,7 @@ export default {
           'Sec-WebSocket-Protocol': secWebSocketProtocol,
           'Sec-WebSocket-Version': secWebSocketVersion,
           'Host': '127.0.0.1:8501',
-          'Origin': 'http://127.0.0.1:8501'
+          'Origin': 'https://127.0.0.1:8501'
         });
 
         return fetch(streamlitUrl, {
@@ -72,24 +78,31 @@ export default {
       }
 
       // Forward all other requests to Streamlit
-      const streamlitUrl = new URL(url.pathname + url.search, 'http://127.0.0.1:8501');
+      const streamlitUrl = new URL(url.pathname + url.search, 'https://127.0.0.1:8501');
       const response = await fetch(streamlitUrl.toString(), {
         method: request.method,
         headers: {
           ...Object.fromEntries(request.headers),
           'Host': '127.0.0.1:8501',
-          'X-Forwarded-Proto': request.headers.get('x-forwarded-proto') || 'https',
+          'X-Forwarded-Proto': 'https',
           'X-Real-IP': request.headers.get('cf-connecting-ip') || '',
           'X-Forwarded-For': request.headers.get('cf-connecting-ip') || ''
         },
         body: ['GET', 'HEAD'].includes(request.method) ? null : request.body
       });
 
-      // Create new response with CORS headers
+      // Create new response with CORS and security headers
       const newHeaders = new Headers(response.headers);
       Object.entries(corsHeaders).forEach(([key, value]) => {
         newHeaders.set(key, value);
       });
+      
+      // Add additional security headers
+      newHeaders.set('Content-Security-Policy', "default-src 'self' 'unsafe-inline' 'unsafe-eval' https: wss:; img-src 'self' data: https:; worker-src 'self' blob:");
+      newHeaders.set('X-Content-Type-Options', 'nosniff');
+      newHeaders.set('X-Frame-Options', 'SAMEORIGIN');
+      newHeaders.set('X-XSS-Protection', '1; mode=block');
+      newHeaders.set('Referrer-Policy', 'strict-origin-when-cross-origin');
 
       return new Response(response.body, {
         status: response.status,

@@ -23,12 +23,30 @@ crons = []
 # Development environment
 [env.development]
 workers_dev = true
-vars = { STREAMLIT_SERVER_PORT = "8501" }
+vars = { 
+  STREAMLIT_SERVER_PORT = "8501",
+  STREAMLIT_SERVER_ADDRESS = "0.0.0.0",
+  STREAMLIT_SERVER_HEADLESS = "true",
+  STREAMLIT_SERVER_ENABLE_CORS = "true",
+  STREAMLIT_SERVER_ENABLE_HTTPS = "true"
+}
 
 # Production environment
 [env.production]
 workers_dev = true
-vars = { STREAMLIT_SERVER_PORT = "8501" }
+vars = { 
+  STREAMLIT_SERVER_PORT = "8501",
+  STREAMLIT_SERVER_ADDRESS = "0.0.0.0",
+  STREAMLIT_SERVER_HEADLESS = "true",
+  STREAMLIT_SERVER_ENABLE_CORS = "true",
+  STREAMLIT_SERVER_ENABLE_HTTPS = "true"
+}
 routes = [
   { pattern = "stock-stocktradingappwithaiassistant.pages.dev/*", zone_name = "pages.dev" }
 ]
+
+# SSL/TLS Configuration
+[ssl]
+certificate_file = ""  # Leave empty for Cloudflare-managed certificates
+private_key_file = ""  # Leave empty for Cloudflare-managed certificates
+always_use_https = true

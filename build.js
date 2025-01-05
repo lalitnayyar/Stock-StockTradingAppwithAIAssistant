@@ -20,8 +20,8 @@ const clientJs = `
 
             function tryConnect() {
                 try {
-                    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                    const wsUrl = wsProtocol + '//' + window.location.host + '/stream';
+                    // Always use secure WebSocket
+                    const wsUrl = 'wss://' + window.location.host + '/stream';
                     
                     console.log('Connecting to WebSocket:', wsUrl);
                     const ws = new WebSocket(wsUrl);
@@ -99,6 +99,7 @@ const indexHtml = `<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https: wss:; img-src 'self' data: https:; worker-src 'self' blob:">
     <title>Stock Trading App</title>
     <script src="/static/streamlit-client.js" defer></script>
     <style>
@@ -129,6 +130,12 @@ const indexHtml = `<!DOCTYPE html>
             border-radius: 50%;
             animation: spin 1s linear infinite;
         }
+        .error-message {
+            color: #FF4B4B;
+            text-align: center;
+            padding: 20px;
+            max-width: 80%;
+        }
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
@@ -142,25 +149,10 @@ const indexHtml = `<!DOCTYPE html>
     <div id="root"></div>
     <script>
         window.addEventListener('DOMContentLoaded', function() {
-            // Wait for client initialization
-            const maxWaitTime = 10000; // 10 seconds
-            const startTime = Date.now();
-            
-            function checkAndRedirect() {
-                if (window.streamlitClient) {
-                    console.log('Streamlit client initialized, redirecting to /app');
-                    setTimeout(() => {
-                        window.location.href = '/app';
-                    }, 100);
-                } else if (Date.now() - startTime < maxWaitTime) {
-                    setTimeout(checkAndRedirect, 100);
-                } else {
-                    console.error('Failed to initialize Streamlit client');
-                    document.getElementById('loading').innerHTML = '<p>Failed to load application. Please refresh the page.</p>';
-                }
+            // Ensure HTTPS
+            if (window.location.protocol === 'http:') {
+                window.location.href = window.location.href.replace('http:', 'https:');
             }
-            
-            checkAndRedirect();
         });
     </script>
 </body>
@@ -174,6 +166,11 @@ const headers = `/*
   Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS
   Access-Control-Allow-Headers: *
   Content-Security-Policy: default-src 'self' 'unsafe-inline' 'unsafe-eval' https: wss: ws:; connect-src 'self' https: wss: ws:; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:;
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: same-origin
+  X-XSS-Protection: 1; mode=block
 `;
 
 fs.writeFileSync(path.join('build_output', '_headers'), headers);
