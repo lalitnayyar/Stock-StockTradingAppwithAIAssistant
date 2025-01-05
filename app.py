@@ -1,4 +1,7 @@
 import streamlit as st
+from streamlit.web import cli as stcli
+from streamlit.web.server.server import Server
+import os
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -15,10 +18,19 @@ warnings.filterwarnings('ignore')
 # Page config
 st.set_page_config(
     page_title="Stock Trading App with AI Assistant",
-    page_icon="📈",
+    page_icon="",
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Add custom headers for CORS
+if Server.get_current()._server_is_running:
+    Server.get_current()._server.add_headers([
+        ("Access-Control-Allow-Origin", "*"),
+        ("Access-Control-Allow-Methods", "GET, POST, OPTIONS"),
+        ("Access-Control-Allow-Headers", "Content-Type"),
+        ("Access-Control-Allow-Credentials", "true"),
+    ])
 
 # Custom CSS
 st.markdown("""
@@ -261,7 +273,7 @@ def predict_stock_prices(data, days_to_predict=30):
 def main():
     """Main application function"""
     if selected == "Stock Analysis":
-        st.title('📈 Stock Analysis Dashboard')
+        st.title(' Stock Analysis Dashboard')
         
         # Load data
         stock, data = load_stock_data()
@@ -302,7 +314,7 @@ def main():
                     st.line_chart(indicators[['MACD_12_26_9', 'MACDs_12_26_9']])
     
     elif selected == "AI Predictions":
-        st.title('🤖 AI Stock Price Predictions')
+        st.title(' AI Stock Price Predictions')
         
         stock, data = load_stock_data()
         
@@ -355,7 +367,7 @@ def main():
                          f"${data['Close'][-1]:.2f}")
     
     elif selected == "Trading Signals":
-        st.title('⚡ Trading Signals')
+        st.title(' Trading Signals')
         
         stock, data = load_stock_data()
         

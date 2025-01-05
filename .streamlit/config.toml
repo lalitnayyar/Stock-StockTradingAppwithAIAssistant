@@ -1,14 +1,16 @@
 [server]
 port = 8501
 address = "0.0.0.0"
-headless = true
-enableCORS = true
-enableXsrfProtection = true
 maxUploadSize = 200
+enableCORS = true
+enableXsrfProtection = false  # Temporarily disable for debugging
+baseUrlPath = ""
+allowIframingFrom = ["*"]  # Allow embedding from any domain
+headless = true
 runOnSave = true
 
 [browser]
-serverAddress = "localhost"
+serverAddress = "0.0.0.0"
 gatherUsageStats = false
 serverPort = 8501
 
@@ -23,7 +25,7 @@ font = "sans serif"
 showPyplotGlobalUse = false
 
 [global]
-developmentMode = false
+developmentMode = true
 showWarningOnDirectExecution = false
 
 [mapbox]
@@ -36,3 +38,4 @@ installTracker = true
 [client]
 showErrorDetails = true
 toolbarMode = "auto"
+caching = true
