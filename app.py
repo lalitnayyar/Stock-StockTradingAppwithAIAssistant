@@ -105,7 +105,7 @@ def create_candlestick_chart(df, symbol):
 def get_ai_response(prompt):
     """Get AI response for stock analysis"""
     if not API_KEY or not API_URL:
-        return "AI analysis is currently unavailable. Please check back later."
+        return "AI analysis is currently unavailable. Please check back later.", None
     
     try:
         # Extract any symbols from the user's question first
@@ -114,7 +114,9 @@ def get_ai_response(prompt):
         # Enhance prompt to get better stock-related responses
         enhanced_prompt = (
             "You are a financial analyst assistant. "
-            "When mentioning companies, always include their stock symbol in uppercase with a $ prefix. "
+            "Please analyze the following question and provide insights. "
+            "IMPORTANT: Always include stock symbols in your response using the format $SYMBOL (e.g., $AAPL for Apple). "
+            "If you mention any company, you must include its stock symbol. "
             f"Question: {prompt}\n"
             f"{'Note: The user mentioned ' + question_symbol + '.' if question_symbol else ''}"
         )
@@ -142,8 +144,17 @@ def get_ai_response(prompt):
             if not symbol and question_symbol:
                 symbol = question_symbol
             
+            # Validate the symbol with yfinance
             if symbol:
-                st.session_state.last_symbol = symbol
+                try:
+                    ticker = yf.Ticker(symbol)
+                    info = ticker.info
+                    if info and info.get('regularMarketPrice'):
+                        st.session_state.last_symbol = symbol
+                    else:
+                        symbol = None
+                except:
+                    symbol = None
             
             return ai_response, symbol
             
@@ -289,11 +300,14 @@ if user_question:
             
             # If we found a symbol, display detailed stock information
             if symbol:
-                st.success(f"📈 Detailed Analysis for ${symbol}")
-                display_stock_details(symbol)
-                
-                # Add a note about the data source
-                st.info("Data provided by Yahoo Finance. All prices are in USD unless otherwise noted.")
+                try:
+                    st.success(f"📈 Detailed Analysis for ${symbol}")
+                    if display_stock_details(symbol):
+                        st.info("Data provided by Yahoo Finance. All prices are in USD unless otherwise noted.")
+                    else:
+                        st.warning(f"Could not fetch detailed data for ${symbol}")
+                except Exception as e:
+                    st.error(f"Error displaying stock details: {str(e)}")
             
             # Add to chat history
             st.session_state.chat_history.append({
@@ -308,5 +322,21 @@ with st.sidebar:
     search_symbol = st.text_input("Enter Stock Symbol (e.g., AAPL):")
     if search_symbol:
         symbol = search_symbol.upper()
-        if display_stock_details(symbol):
-            st.session_state.last_symbol = symbol
+        try:
+            if display_stock_details(symbol):
+                st.session_state.last_symbol = symbol
+                st.info("Data provided by Yahoo Finance. All prices are in USD unless otherwise noted.")
+            else:
+                st.warning(f"Could not fetch data for {symbol}. Please check the symbol and try again.")
+        except Exception as e:
+            st.error(f"Error: {str(e)}")
+
+# Display chat history
+if st.session_state.chat_history:
+    st.header("Previous Queries")
+    for i, chat in enumerate(reversed(st.session_state.chat_history[-5:])):  # Show last 5 conversations
+        with st.expander(f"Query {len(st.session_state.chat_history)-i}: {chat['question'][:50]}..."):
+            st.write("**Question:**", chat['question'])
+            st.write("**AI Response:**", chat['response'])
+            if chat['symbol']:
+                st.write("**Symbol Discussed:**", f"${chat['symbol']}")
