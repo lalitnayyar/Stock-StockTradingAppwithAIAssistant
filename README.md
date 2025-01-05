@@ -1,4 +1,4 @@
-# Stock Trading Application
+# Stock StarLink AI App 
 
 A modern, interactive stock trading application built with Streamlit that provides real-time stock data, interactive charts, and AI-powered financial advice.
 
