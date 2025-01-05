@@ -319,24 +319,46 @@ if user_question:
 # Manual Stock Search
 with st.sidebar:
     st.title("Manual Stock Search")
-    search_symbol = st.text_input("Enter Stock Symbol (e.g., AAPL):")
-    if search_symbol:
-        symbol = search_symbol.upper()
-        try:
-            if display_stock_details(symbol):
-                st.session_state.last_symbol = symbol
-                st.info("Data provided by Yahoo Finance. All prices are in USD unless otherwise noted.")
-            else:
-                st.warning(f"Could not fetch data for {symbol}. Please check the symbol and try again.")
-        except Exception as e:
-            st.error(f"Error: {str(e)}")
+    with st.form("stock_search_form"):
+        search_symbol = st.text_input("Enter Stock Symbol (e.g., AAPL):", key="manual_stock_search")
+        submit_button = st.form_submit_button("📊 Get Stock Report", use_container_width=True)
+        
+        if submit_button and search_symbol:
+            symbol = search_symbol.upper()
+            try:
+                # Show loading spinner while fetching data
+                with st.spinner(f'Fetching data for ${symbol}...'):
+                    # Verify the symbol exists
+                    ticker = yf.Ticker(symbol)
+                    info = ticker.info
+                    if info and info.get('regularMarketPrice'):
+                        st.success(f"Found ${symbol} - {info.get('longName', '')}")
+                        if display_stock_details(symbol):
+                            st.session_state.last_symbol = symbol
+                            st.info("Data provided by Yahoo Finance. All prices are in USD unless otherwise noted.")
+                        else:
+                            st.warning(f"Could not fetch complete data for {symbol}. Please try again.")
+                    else:
+                        st.error(f"Invalid symbol: {symbol}. Please check and try again.")
+            except Exception as e:
+                st.error(f"Error fetching data: {str(e)}")
+    
+    # Show recent searches
+    if hasattr(st.session_state, 'last_symbol') and st.session_state.last_symbol:
+        st.markdown("---")
+        st.markdown("### Recent Searches")
+        if st.button(f"📈 ${st.session_state.last_symbol}", key="recent_search"):
+            symbol = st.session_state.last_symbol
+            display_stock_details(symbol)
 
 # Display chat history
 if st.session_state.chat_history:
+    st.markdown("---")
     st.header("Previous Queries")
     for i, chat in enumerate(reversed(st.session_state.chat_history[-5:])):  # Show last 5 conversations
         with st.expander(f"Query {len(st.session_state.chat_history)-i}: {chat['question'][:50]}..."):
             st.write("**Question:**", chat['question'])
             st.write("**AI Response:**", chat['response'])
             if chat['symbol']:
-                st.write("**Symbol Discussed:**", f"${chat['symbol']}")
+                if st.button(f"📊 Show ${chat['symbol']} Details", key=f"history_{i}"):
+                    display_stock_details(chat['symbol'])
