@@ -22,11 +22,26 @@ mkdir -p build_output/static
 echo "Creating streamlit-client.js..."
 cat > build_output/static/streamlit-client.js << EOL
 // Initialize Streamlit client
-window.addEventListener('load', function() {
+window.addEventListener('DOMContentLoaded', function() {
+    // Create WebSocket connection
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = wsProtocol + '//' + window.location.host + '/stream';
+    
+    const ws = new WebSocket(wsUrl);
+    ws.onopen = () => console.log('WebSocket connected');
+    ws.onerror = (error) => console.error('WebSocket error:', error);
+    
     const client = {
-        sendMessage: function() {},
-        onMessage: function() {}
+        sendMessage: function(message) {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(message));
+            }
+        },
+        onMessage: function(callback) {
+            ws.onmessage = (event) => callback(JSON.parse(event.data));
+        }
     };
+    
     window.streamlitClient = client;
 });
 EOL
@@ -40,12 +55,17 @@ cat > build_output/index.html << EOL
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stock Trading App</title>
-    <script src="/static/streamlit-client.js"></script>
+    <script src="/static/streamlit-client.js" defer></script>
 </head>
 <body>
     <div id="root"></div>
     <script>
-        window.location.href = '/app';
+        // Wait for client to initialize before redirecting
+        window.addEventListener('DOMContentLoaded', function() {
+            setTimeout(() => {
+                window.location.href = '/app';
+            }, 100);
+        });
     </script>
 </body>
 </html>
@@ -81,6 +101,7 @@ address = "0.0.0.0"
 headless = true
 enableCORS = true
 enableXsrfProtection = false
+maxUploadSize = 200
 
 [browser]
 gatherUsageStats = false
@@ -94,6 +115,10 @@ backgroundColor = "#0E1117"
 secondaryBackgroundColor = "#262730"
 textColor = "#FAFAFA"
 font = "sans-serif"
+
+[client]
+showErrorDetails = true
+toolbarMode = "minimal"
 EOL
 
 # Create _headers for Cloudflare Pages
@@ -102,78 +127,8 @@ cat > build_output/_headers << EOL
 /*
   Access-Control-Allow-Origin: *
   Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS
-  Access-Control-Allow-Headers: Content-Type, Authorization
-  Content-Security-Policy: default-src 'self' 'unsafe-inline' 'unsafe-eval' https:; connect-src 'self' https: ws: wss:; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:;
-EOL
-
-# Create worker.js
-echo "Creating worker.js..."
-cat > build_output/worker.js << EOL
-export default {
-  async fetch(request, env, ctx) {
-    const corsHeaders = {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    };
-
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: corsHeaders });
-    }
-
-    try {
-      const url = new URL(request.url);
-      
-      // Serve static files
-      if (url.pathname.startsWith('/static/')) {
-        const response = await fetch(request);
-        if (response.ok) {
-          const newHeaders = new Headers(response.headers);
-          Object.entries(corsHeaders).forEach(([key, value]) => {
-            newHeaders.set(key, value);
-          });
-          return new Response(response.body, {
-            status: response.status,
-            headers: newHeaders
-          });
-        }
-      }
-
-      // Handle root path
-      if (url.pathname === '/' || url.pathname === '/index.html') {
-        return Response.redirect(\`\${url.origin}/app\`, 301);
-      }
-
-      // Forward to Streamlit
-      const streamlitUrl = \`http://127.0.0.1:8501\${url.pathname}\${url.search}\`;
-      const response = await fetch(streamlitUrl, {
-        method: request.method,
-        headers: {
-          ...Object.fromEntries(request.headers),
-          'Host': '127.0.0.1:8501',
-          'X-Forwarded-Proto': 'https',
-        },
-        body: ['GET', 'HEAD'].includes(request.method) ? null : request.body,
-      });
-
-      const newHeaders = new Headers(response.headers);
-      Object.entries(corsHeaders).forEach(([key, value]) => {
-        newHeaders.set(key, value);
-      });
-
-      return new Response(response.body, {
-        status: response.status,
-        headers: newHeaders
-      });
-    } catch (error) {
-      console.error('Worker error:', error);
-      return new Response(\`Error: \${error.message}\`, {
-        status: 500,
-        headers: { 'Content-Type': 'text/plain', ...corsHeaders }
-      });
-    }
-  }
-};
+  Access-Control-Allow-Headers: *
+  Content-Security-Policy: default-src 'self' 'unsafe-inline' 'unsafe-eval' https: wss: ws:; connect-src 'self' https: wss: ws:; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:;
 EOL
 
 # List contents of build directory
