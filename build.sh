@@ -18,6 +18,26 @@ rm -rf build_output || true
 mkdir -p build_output
 mkdir -p build_output/static
 
+# Create index.html
+echo "Creating index.html..."
+cat > build_output/static/index.html << EOL
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Trading App</title>
+    <script src="https://cdn.jsdelivr.net/npm/streamlit-component-lib@^1.4.0/dist/streamlit.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+    <script>
+        window.location.href = '/app';
+    </script>
+</body>
+</html>
+EOL
+
 # Copy necessary files
 echo "Copying files..."
 for file in app.py start.py requirements.txt requirements-dev.txt worker.js; do
@@ -42,9 +62,28 @@ port = 8501
 address = "0.0.0.0"
 headless = true
 enableCORS = true
+enableXsrfProtection = false
 
 [browser]
 gatherUsageStats = false
+
+[theme]
+base = "dark"
+primaryColor = "#FF4B4B"
+backgroundColor = "#0E1117"
+secondaryBackgroundColor = "#262730"
+textColor = "#FAFAFA"
+font = "sans-serif"
+EOL
+
+# Create _routes.json for Cloudflare Pages
+echo "Creating _routes.json..."
+cat > build_output/_routes.json << EOL
+{
+  "version": 1,
+  "include": ["/*"],
+  "exclude": ["/static/*"]
+}
 EOL
 
 # List contents of build directory
