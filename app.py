@@ -2,6 +2,7 @@ import streamlit as st
 from streamlit.web import cli as stcli
 from streamlit.web.server.server import Server
 import os
+from streamlit.runtime.scriptrunner import get_script_run_ctx
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -15,21 +16,41 @@ from tensorflow.keras.layers import LSTM, Dense, Dropout
 import warnings
 warnings.filterwarnings('ignore')
 
+def set_cookie_config():
+    """Configure cookie settings for the application"""
+    ctx = get_script_run_ctx()
+    if ctx is not None:
+        ctx.session_state.cookie_config = {
+            "expiry_days": 30,
+            "key": "streamlit_cookie",
+            "samesite": "Lax"
+        }
+
 # Page config
 st.set_page_config(
     page_title="Stock Trading App with AI Assistant",
     page_icon="",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
+    menu_items={
+        'Get Help': 'https://github.com/lalitnayyar/Stock-StockTradingAppwithAIAssistant',
+        'Report a bug': 'https://github.com/lalitnayyar/Stock-StockTradingAppwithAIAssistant/issues',
+        'About': 'Stock Trading App with AI Assistant - Created by Lalit Nayyar'
+    }
 )
 
-# Add custom headers for CORS
-if Server.get_current()._server_is_running:
-    Server.get_current()._server.add_headers([
+# Set cookie configuration
+set_cookie_config()
+
+# Add custom headers for CORS and cookies
+if Server.get_current() and Server.get_current()._server:
+    current_server = Server.get_current()._server
+    current_server.add_headers([
         ("Access-Control-Allow-Origin", "*"),
         ("Access-Control-Allow-Methods", "GET, POST, OPTIONS"),
         ("Access-Control-Allow-Headers", "Content-Type"),
         ("Access-Control-Allow-Credentials", "true"),
+        ("Set-Cookie", "SameSite=Lax; Secure; Path=/")
     ])
 
 # Custom CSS

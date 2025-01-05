@@ -8,6 +8,9 @@ baseUrlPath = ""
 allowIframingFrom = ["*"]  # Allow embedding from any domain
 headless = true
 runOnSave = true
+cookieSecret = "your-secret-key-here"
+sslCertFile = ""
+sslKeyFile = ""
 
 [browser]
 serverAddress = "0.0.0.0"
@@ -27,6 +30,7 @@ showPyplotGlobalUse = false
 [global]
 developmentMode = true
 showWarningOnDirectExecution = false
+disableWatchdogWarning = true
 
 [mapbox]
 token = ""
@@ -34,8 +38,17 @@ token = ""
 [runner]
 magicEnabled = true
 installTracker = true
+fastReruns = true
 
 [client]
 showErrorDetails = true
 toolbarMode = "auto"
 caching = true
+
+[logger]
+level = "error"
+
+[server.cookieConfig]
+expiry_days = 30
+key = "streamlit_cookie"
+samesite = "Lax"
