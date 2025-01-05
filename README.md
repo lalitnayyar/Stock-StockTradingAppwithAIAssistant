@@ -229,6 +229,82 @@ To prevent URL recursion issues (multiple `/_app` in the URL), the following con
   - Improved error feedback for users
   - Better handling of static assets
 
+### HTTPS Migration and Security Improvements (January 5, 2025)
+
+### Security Enhancements
+- Converted entire application to use HTTPS:
+  - Enforced HTTPS for all connections
+  - Implemented secure WebSocket (WSS) connections
+  - Added automatic HTTP to HTTPS redirection
+  - Configured SSL/TLS settings
+
+### Security Headers
+Added comprehensive security headers:
+```plaintext
+- Strict-Transport-Security (HSTS)
+- Content-Security-Policy (CSP)
+- X-Content-Type-Options
+- X-Frame-Options
+- X-XSS-Protection
+- Referrer-Policy
+```
+
+### Worker Configuration Updates
+- Enhanced worker.js with security features:
+  ```javascript
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': '*',
+    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload'
+  };
+  ```
+- Improved WebSocket handling with secure connections:
+  ```javascript
+  const streamlitUrl = 'wss://127.0.0.1:8501/stream';
+  ```
+
+### Client-Side Security
+- Updated client initialization to enforce HTTPS:
+  ```javascript
+  if (window.location.protocol === 'http:') {
+    window.location.href = window.location.href.replace('http:', 'https:');
+  }
+  ```
+- Added secure WebSocket connection handling:
+  ```javascript
+  const wsUrl = 'wss://' + window.location.host + '/stream';
+  ```
+
+### Environment Configuration
+- Updated wrangler.toml with HTTPS settings:
+  ```toml
+  [env.production.vars]
+  STREAMLIT_SERVER_ENABLE_HTTPS = "true"
+  
+  [ssl]
+  always_use_https = true
+  ```
+
+### Security Best Practices
+- Implemented Content Security Policy (CSP)
+- Added secure headers for all responses
+- Enabled CORS with proper security settings
+- Improved error handling for secure connections
+
+### Accessing the Application
+The application is now securely accessible at:
+- Main URL (HTTPS): https://stock-stocktradingappwithaiassistant.lalitnayyar.workers.dev
+- Pages URL (HTTPS): https://stock-stocktradingappwithaiassistant.pages.dev
+
+### Troubleshooting HTTPS Issues
+If you encounter any issues:
+1. Clear your browser cache
+2. Ensure you're using HTTPS in the URL
+3. Check browser console for security warnings
+4. Verify WebSocket connections are using WSS
+5. Check if your browser supports TLS 1.2 or higher
+
 ### Deployment Changes
 - Updated wrangler.toml configuration:
   ```toml
