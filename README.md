@@ -252,13 +252,12 @@ Example questions:
    4. Select your repository
    5. Configure build settings:
       - Framework preset: None
-      - Build command: `bash start.sh`
+      - Build command: `python start.py`
       - Build output directory: `public`
       - Root directory: `/`
       - Environment variables:
         ```
         PYTHON_VERSION=3.11
-        PORT=8501
         ```
 
 3. **Environment Variables**
@@ -267,8 +266,6 @@ Example questions:
    2. Add the following variables:
       ```
       DEEPSEEK_API_KEY=your_api_key_here
-      STREAMLIT_SERVER_PORT=8501
-      STREAMLIT_SERVER_ADDRESS=0.0.0.0
       ```
 
 4. **Advanced Build Settings**
