@@ -164,94 +164,156 @@ def get_ai_response(prompt):
         return f"Error: {str(e)}", None
 
 def display_stock_details(symbol):
-    """Display detailed stock information with error handling"""
-    try:
-        ticker = yf.Ticker(symbol)
-        
-        # Get basic info with timeout and error handling
-        try:
-            info = ticker.info
-            if not info or not isinstance(info, dict):
-                st.error(f"Could not fetch basic information for {symbol}")
-                return False
-        except Exception as e:
-            st.error(f"Error fetching basic info: {str(e)}")
-            return False
-
-        # Get recent price data
-        try:
-            hist = ticker.history(period="1d")
-            if hist.empty:
-                st.error(f"No recent price data available for {symbol}")
-                return False
-            current_price = hist['Close'].iloc[-1]
-        except Exception as e:
-            st.error(f"Error fetching price data: {str(e)}")
-            return False
-
-        # Create tabs for different categories of information
-        overview_tab, financials_tab, news_tab = st.tabs(["Overview", "Financials", "News"])
-
-        with overview_tab:
-            # Company Overview
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.metric(
-                    label="Current Price",
-                    value=f"${current_price:.2f}",
-                    delta=f"{((current_price - info.get('previousClose', current_price)) / info.get('previousClose', current_price) * 100):.2f}%"
-                )
-                st.metric("Market Cap", f"${info.get('marketCap', 0) / 1e9:.2f}B")
-                st.metric("Volume", format(info.get('volume', 0), ',d'))
-
-            with col2:
-                st.metric("52 Week High", f"${info.get('fiftyTwoWeekHigh', 0):.2f}")
-                st.metric("52 Week Low", f"${info.get('fiftyTwoWeekLow', 0):.2f}")
-                st.metric("Average Volume", format(info.get('averageVolume', 0), ',d'))
-
-            # Company Description
-            if info.get('longBusinessSummary'):
-                st.subheader("About the Company")
-                st.write(info['longBusinessSummary'])
-
-        with financials_tab:
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.metric("P/E Ratio", f"{info.get('trailingPE', 'N/A')}")
-                st.metric("EPS", f"${info.get('trailingEps', 0):.2f}")
-                st.metric("Forward P/E", f"{info.get('forwardPE', 'N/A')}")
-
-            with col2:
-                st.metric("Dividend Yield", f"{info.get('dividendYield', 0) * 100:.2f}%" if info.get('dividendYield') else "N/A")
-                st.metric("Beta", f"{info.get('beta', 'N/A')}")
-                st.metric("Profit Margin", f"{info.get('profitMargins', 0) * 100:.2f}%" if info.get('profitMargins') else "N/A")
-
-        with news_tab:
-            try:
-                # Get news for the company
-                news = ticker.news
-                if news:
-                    for article in news[:5]:  # Display top 5 news articles
-                        st.write(f"**{article.get('title', 'No Title')}**")
-                        st.write(f"_{article.get('publisher', 'Unknown')} - {datetime.fromtimestamp(article.get('providerPublishTime', 0)).strftime('%Y-%m-%d %H:%M:%S')}_")
-                        st.write(article.get('summary', 'No summary available'))
-                        st.markdown("---")
-                else:
-                    st.info("No recent news available")
-            except Exception as e:
-                st.warning("Could not fetch news data")
-
-        return True
-
-    except Exception as e:
-        st.error(f"Error displaying stock details: {str(e)}")
+    """Display comprehensive stock details including chart and information"""
+    if not symbol:
         return False
+        
+    hist_data, stock_info = get_stock_data(symbol)
+    if hist_data is None or stock_info is None:
+        st.error(f"Could not fetch data for {symbol}")
+        return False
+    
+    # Company Header with Current Price
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.title(f"{stock_info.get('longName', symbol)} ({symbol})")
+    with col2:
+        current_price = stock_info.get('regularMarketPrice', 'N/A')
+        prev_close = stock_info.get('previousClose', 'N/A')
+        if current_price != 'N/A' and prev_close != 'N/A':
+            price_change = current_price - prev_close
+            price_change_pct = (price_change / prev_close) * 100
+            price_color = "green" if price_change >= 0 else "red"
+            st.markdown(f"""
+                <div style='text-align: right'>
+                    <h2 style='margin: 0; color: {price_color}'>${current_price:.2f}</h2>
+                    <p style='margin: 0; color: {price_color}'>
+                        {price_change:+.2f} ({price_change_pct:+.2f}%)
+                    </p>
+                </div>
+            """, unsafe_allow_html=True)
+    
+    # Key Statistics Grid
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Previous Close", f"${prev_close:.2f}" if prev_close != 'N/A' else 'N/A')
+        st.metric("Open", f"${stock_info.get('open', 'N/A'):.2f}")
+    
+    with col2:
+        st.metric("Day's Range", f"${stock_info.get('dayLow', 'N/A'):.2f} - ${stock_info.get('dayHigh', 'N/A'):.2f}")
+        st.metric("52 Week Range", f"${stock_info.get('fiftyTwoWeekLow', 'N/A'):.2f} - ${stock_info.get('fiftyTwoWeekHigh', 'N/A'):.2f}")
+    
+    with col3:
+        market_cap = stock_info.get('marketCap', 'N/A')
+        if market_cap != 'N/A':
+            if market_cap >= 1e12:
+                market_cap_str = f"${market_cap/1e12:.2f}T"
+            elif market_cap >= 1e9:
+                market_cap_str = f"${market_cap/1e9:.2f}B"
+            else:
+                market_cap_str = f"${market_cap/1e6:.2f}M"
+        else:
+            market_cap_str = 'N/A'
+        st.metric("Market Cap", market_cap_str)
+        st.metric("Beta", f"{stock_info.get('beta', 'N/A'):.2f}")
+    
+    with col4:
+        st.metric("Volume", f"{stock_info.get('volume', 'N/A'):,}")
+        st.metric("Avg. Volume", f"{stock_info.get('averageVolume', 'N/A'):,}")
+    
+    # Display chart
+    st.plotly_chart(create_candlestick_chart(hist_data, symbol), use_container_width=True)
+    
+    # Company Information and Additional Metrics
+    tab1, tab2, tab3 = st.tabs(["📊 Financial Metrics", "🏢 Company Info", "📈 Additional Stats"])
+    
+    with tab1:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("### Valuation Metrics")
+            st.write(f"- P/E Ratio (TTM): {stock_info.get('trailingPE', 'N/A')}")
+            st.write(f"- Forward P/E: {stock_info.get('forwardPE', 'N/A')}")
+            st.write(f"- EPS (TTM): ${stock_info.get('trailingEps', 'N/A')}")
+            st.write(f"- Forward EPS: ${stock_info.get('forwardEps', 'N/A')}")
+        with col2:
+            st.markdown("### Dividend Information")
+            st.write(f"- Dividend Rate: ${stock_info.get('dividendRate', 'N/A')}")
+            st.write(f"- Dividend Yield: {stock_info.get('dividendYield', 'N/A')}%")
+            st.write(f"- Ex-Dividend Date: {stock_info.get('exDividendDate', 'N/A')}")
+            st.write(f"- Payout Ratio: {stock_info.get('payoutRatio', 'N/A')}")
+    
+    with tab2:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("### Company Profile")
+            st.write(f"- Sector: {stock_info.get('sector', 'N/A')}")
+            st.write(f"- Industry: {stock_info.get('industry', 'N/A')}")
+            st.write(f"- Employees: {stock_info.get('fullTimeEmployees', 'N/A'):,}")
+            st.write(f"- Country: {stock_info.get('country', 'N/A')}")
+        with col2:
+            st.markdown("### Additional Information")
+            st.write(f"- Website: {stock_info.get('website', 'N/A')}")
+            st.write(f"- CEO: {stock_info.get('companyOfficers', [{}])[0].get('name', 'N/A')}")
+            st.write(f"- Founded: {stock_info.get('foundedYear', 'N/A')}")
+            st.write(f"- Exchange: {stock_info.get('exchange', 'N/A')}")
+    
+    with tab3:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("### Trading Statistics")
+            st.write(f"- 50-Day Moving Average: ${stock_info.get('fiftyDayAverage', 'N/A'):.2f}")
+            st.write(f"- 200-Day Moving Average: ${stock_info.get('twoHundredDayAverage', 'N/A'):.2f}")
+            st.write(f"- Short Ratio: {stock_info.get('shortRatio', 'N/A')}")
+            st.write(f"- Short % of Float: {stock_info.get('shortPercentOfFloat', 'N/A')}%")
+        with col2:
+            st.markdown("### Price Targets")
+            st.write(f"- Analyst Target Price: ${stock_info.get('targetMeanPrice', 'N/A'):.2f}")
+            st.write(f"- Target High: ${stock_info.get('targetHighPrice', 'N/A'):.2f}")
+            st.write(f"- Target Low: ${stock_info.get('targetLowPrice', 'N/A'):.2f}")
+            st.write(f"- Number of Analysts: {stock_info.get('numberOfAnalystOpinions', 'N/A')}")
+    
+    # Company Description
+    with st.expander("📝 Company Description"):
+        st.write(stock_info.get('longBusinessSummary', 'No description available.'))
+    
+    return True
+
+def get_symbol_suggestions(company_name):
+    """Get symbol suggestions for a company name"""
+    common_symbols = {
+        'TESLA': 'TSLA',
+        'APPLE': 'AAPL',
+        'MICROSOFT': 'MSFT',
+        'AMAZON': 'AMZN',
+        'GOOGLE': 'GOOGL',
+        'META': 'META',
+        'FACEBOOK': 'META',
+        'NETFLIX': 'NFLX',
+        'NVIDIA': 'NVDA',
+        'ALPHABET': 'GOOGL',
+    }
+    
+    # Check for direct matches
+    company_name = company_name.upper()
+    if company_name in common_symbols:
+        return common_symbols[company_name]
+    
+    # Check for partial matches
+    for name, symbol in common_symbols.items():
+        if name in company_name or company_name in name:
+            return symbol
+    
+    return None
 
 def validate_stock_symbol(symbol):
     """Validate if a stock symbol exists and is tradeable"""
     try:
+        # Check if the input looks like a company name
+        suggestion = get_symbol_suggestions(symbol)
+        if suggestion:
+            return False, None, f"Did you mean ${suggestion}? Please use the stock symbol instead of the company name."
+        
         ticker = yf.Ticker(symbol)
         # Try to get recent data to verify the symbol is valid
         hist = ticker.history(period="1d")
@@ -259,11 +321,13 @@ def validate_stock_symbol(symbol):
         
         # Check if we got any historical data and basic info
         if not hist.empty and info and isinstance(info, dict):
-            return True, info
-        return False, None
+            return True, info, None
+        return False, None, f"No data found for symbol ${symbol}. Please verify the symbol is correct."
     except Exception as e:
-        print(f"Error validating symbol {symbol}: {str(e)}")
-        return False, None
+        error_msg = str(e)
+        if "404" in error_msg:
+            return False, None, f"Symbol ${symbol} not found. Please verify the symbol is correct."
+        return False, None, f"Error validating symbol: {error_msg}"
 
 # Main content
 st.title("Stock Trading Application")
@@ -316,7 +380,7 @@ with st.sidebar:
                 # Show loading spinner while fetching data
                 with st.spinner(f'Fetching data for ${symbol}...'):
                     # Verify the symbol exists
-                    is_valid, info = validate_stock_symbol(symbol)
+                    is_valid, info, error_msg = validate_stock_symbol(symbol)
                     
                     if is_valid:
                         st.success(f"Found ${symbol} - {info.get('longName', '')}")
@@ -326,7 +390,7 @@ with st.sidebar:
                         else:
                             st.warning(f"Could not fetch complete data for {symbol}. Please try again.")
                     else:
-                        st.error(f"Could not find data for symbol: {symbol}. Please check and try again.")
+                        st.error(error_msg)
             except Exception as e:
                 st.error(f"Error fetching data: {str(e)}")
     
