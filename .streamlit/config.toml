@@ -2,7 +2,6 @@
 port = 8501
 address = "0.0.0.0"
 headless = true
-baseUrlPath = "_app"
 enableCORS = true
 enableXsrfProtection = false
 maxUploadSize = 200
@@ -22,7 +21,6 @@ font = "sans serif"
 
 [deprecation]
 showPyplotGlobalUse = false
-showfileUploaderEncoding = false
 
 [global]
 developmentMode = false
