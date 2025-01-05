@@ -39,10 +39,10 @@ def extract_stock_symbols(text):
     ]
     
     def validate_symbol(sym):
+        """Validate a single symbol"""
         try:
-            ticker = yf.Ticker(sym)
-            info = ticker.info
-            return bool(info and info.get('regularMarketPrice'))
+            is_valid, _ = validate_stock_symbol(sym)
+            return is_valid
         except:
             return False
 
@@ -50,15 +50,16 @@ def extract_stock_symbols(text):
     for pattern in patterns[:-1]:  # Exclude standalone pattern initially
         matches = re.finditer(pattern, text.upper())
         for match in matches:
-            symbol = match.group(1)
+            symbol = match.group(1).strip()
             if validate_symbol(symbol):
                 return symbol
     
-    # If no symbols found with context, try standalone capitals
+    # If no symbol found with context, try standalone symbols
     matches = re.finditer(patterns[-1], text.upper())
-    symbols = [match.group(1) for match in matches]
-    for symbol in symbols:
-        if validate_symbol(symbol):
+    for match in matches:
+        symbol = match.group(1).strip()
+        # Filter out common English words that might be mistaken for symbols
+        if len(symbol) > 1 and validate_symbol(symbol):
             return symbol
     
     return None
@@ -278,6 +279,22 @@ def display_stock_details(symbol):
     
     return True
 
+def validate_stock_symbol(symbol):
+    """Validate if a stock symbol exists and is tradeable"""
+    try:
+        ticker = yf.Ticker(symbol)
+        # Try to get recent data to verify the symbol is valid
+        hist = ticker.history(period="1d")
+        info = ticker.info
+        
+        # Check if we got any historical data and basic info
+        if not hist.empty and info and isinstance(info, dict):
+            return True, info
+        return False, None
+    except Exception as e:
+        print(f"Error validating symbol {symbol}: {str(e)}")
+        return False, None
+
 # Main content
 st.title("Stock Trading Application")
 
@@ -324,14 +341,14 @@ with st.sidebar:
         submit_button = st.form_submit_button("📊 Get Stock Report", use_container_width=True)
         
         if submit_button and search_symbol:
-            symbol = search_symbol.upper()
+            symbol = search_symbol.upper().strip()
             try:
                 # Show loading spinner while fetching data
                 with st.spinner(f'Fetching data for ${symbol}...'):
                     # Verify the symbol exists
-                    ticker = yf.Ticker(symbol)
-                    info = ticker.info
-                    if info and info.get('regularMarketPrice'):
+                    is_valid, info = validate_stock_symbol(symbol)
+                    
+                    if is_valid:
                         st.success(f"Found ${symbol} - {info.get('longName', '')}")
                         if display_stock_details(symbol):
                             st.session_state.last_symbol = symbol
@@ -339,7 +356,7 @@ with st.sidebar:
                         else:
                             st.warning(f"Could not fetch complete data for {symbol}. Please try again.")
                     else:
-                        st.error(f"Invalid symbol: {symbol}. Please check and try again.")
+                        st.error(f"Could not find data for symbol: {symbol}. Please check and try again.")
             except Exception as e:
                 st.error(f"Error fetching data: {str(e)}")
     
