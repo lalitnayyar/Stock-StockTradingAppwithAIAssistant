@@ -1,0 +1,30 @@
+name = "stock-stocktradingappwithaiassistant"
+main = "worker.js"
+compatibility_date = "2024-01-05"
+compatibility_flags = ["python_workers"]
+workers_dev = true
+
+[site]
+bucket = "./build_output"
+
+[build]
+command = "npm run build"
+watch_dir = "build_output"
+
+[build.upload]
+format = "service-worker"
+
+[[rules]]
+type = "ESModule"
+globs = ["**/*.js"]
+
+[env.production]
+workers_dev = true
+route = "stock-stocktradingappwithaiassistant.pages.dev/*"
+
+[env.production.vars]
+STREAMLIT_SERVER_PORT = "8501"
+STREAMLIT_SERVER_ADDRESS = "0.0.0.0"
+STREAMLIT_SERVER_HEADLESS = "true"
+STREAMLIT_SERVER_ENABLE_CORS = "true"
+STREAMLIT_BROWSER_GATHER_USAGE_STATS = "false"

@@ -20,7 +20,7 @@ mkdir -p build_output/static
 
 # Create index.html
 echo "Creating index.html..."
-cat > build_output/static/index.html << EOL
+cat > build_output/index.html << EOL
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -47,6 +47,11 @@ for file in app.py start.py requirements.txt requirements-dev.txt worker.js; do
         echo "Warning: $file not found"
     fi
 done
+
+# Copy static files
+if [ -d "static" ]; then
+    cp -r static/* build_output/static/
+fi
 
 # Copy .env if it exists
 if [ -f ".env" ]; then
@@ -82,8 +87,17 @@ cat > build_output/_routes.json << EOL
 {
   "version": 1,
   "include": ["/*"],
-  "exclude": ["/static/*"]
+  "exclude": []
 }
+EOL
+
+# Create _headers for Cloudflare Pages
+echo "Creating _headers..."
+cat > build_output/_headers << EOL
+/*
+  Access-Control-Allow-Origin: *
+  Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS
+  Access-Control-Allow-Headers: Content-Type, Authorization
 EOL
 
 # List contents of build directory
