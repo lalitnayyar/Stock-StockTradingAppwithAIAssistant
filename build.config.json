@@ -1,0 +1,11 @@
+{
+  "build": {
+    "command": "npm run build",
+    "output_directory": "build_output",
+    "root_directory": "/"
+  },
+  "environment": {
+    "NODE_VERSION": "18",
+    "PYTHON_VERSION": "3.10"
+  }
+}

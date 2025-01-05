@@ -4,7 +4,7 @@
   "description": "Stock Trading Application with AI Assistant",
   "main": "worker/worker.js",
   "scripts": {
-    "build": "bash ./build.sh",
+    "build": "chmod +x build.sh && ./build.sh",
     "start": "python start.py",
     "deploy": "wrangler deploy",
     "dev": "wrangler dev"
