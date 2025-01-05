@@ -1,7 +1,6 @@
-import subprocess
 import os
 import sys
-import time
+import subprocess
 
 def main():
     # Set environment variables
@@ -22,10 +21,7 @@ def main():
 
     # Run the Streamlit app
     print("Starting Streamlit app...")
-    import streamlit.web.cli as stcli
-    
-    sys.argv = ["streamlit", "run", "app.py"]
-    sys.exit(stcli.main())
+    os.execv(sys.executable, [sys.executable, '-m', 'streamlit', 'run', 'app.py'])
 
 if __name__ == "__main__":
     main()
