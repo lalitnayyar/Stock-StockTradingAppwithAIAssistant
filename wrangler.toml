@@ -1,18 +1,17 @@
 name = "stock-stocktradingappwithaiassistant"
-main = "worker.js"
 compatibility_date = "2024-01-05"
-compatibility_flags = ["python_workers"]
 workers_dev = true
-
-[site]
-bucket = "./build_output"
+main = "./worker.js"
 
 [build]
 command = "npm run build"
 watch_dir = "build_output"
 
+[site]
+bucket = "./build_output"
+
 [build.upload]
-format = "service-worker"
+format = "modules"
 
 [[rules]]
 type = "ESModule"

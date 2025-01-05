@@ -27,7 +27,10 @@ cat > build_output/index.html << EOL
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stock Trading App</title>
-    <script src="https://cdn.jsdelivr.net/npm/streamlit-component-lib@^1.4.0/dist/streamlit.js"></script>
+    <script type="module">
+        import streamlit from 'https://cdn.jsdelivr.net/npm/streamlit-component-lib@^1.4.0/dist/streamlit.js';
+        window.streamlit = streamlit;
+    </script>
 </head>
 <body>
     <div id="root"></div>
@@ -40,7 +43,7 @@ EOL
 
 # Copy necessary files
 echo "Copying files..."
-for file in app.py start.py requirements.txt requirements-dev.txt worker.js; do
+for file in app.py start.py requirements.txt requirements-dev.txt; do
     if [ -f "$file" ]; then
         cp "$file" build_output/
     else
@@ -81,16 +84,6 @@ textColor = "#FAFAFA"
 font = "sans-serif"
 EOL
 
-# Create _routes.json for Cloudflare Pages
-echo "Creating _routes.json..."
-cat > build_output/_routes.json << EOL
-{
-  "version": 1,
-  "include": ["/*"],
-  "exclude": []
-}
-EOL
-
 # Create _headers for Cloudflare Pages
 echo "Creating _headers..."
 cat > build_output/_headers << EOL
@@ -98,6 +91,60 @@ cat > build_output/_headers << EOL
   Access-Control-Allow-Origin: *
   Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS
   Access-Control-Allow-Headers: Content-Type, Authorization
+  Content-Security-Policy: default-src 'self' 'unsafe-inline' 'unsafe-eval' https:; connect-src 'self' https: ws:; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:;
+EOL
+
+# Create worker.js
+echo "Creating worker.js..."
+cat > build_output/worker.js << EOL
+export default {
+  async fetch(request, env, ctx) {
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    };
+
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { headers: corsHeaders });
+    }
+
+    try {
+      const url = new URL(request.url);
+      
+      if (url.pathname === '/' || url.pathname === '/index.html') {
+        return Response.redirect(\`\${url.origin}/app\`, 301);
+      }
+
+      const streamlitUrl = \`http://127.0.0.1:8501\${url.pathname}\${url.search}\`;
+      const response = await fetch(streamlitUrl, {
+        method: request.method,
+        headers: {
+          ...Object.fromEntries(request.headers),
+          'Host': '127.0.0.1:8501',
+          'X-Forwarded-Proto': 'https',
+        },
+        body: ['GET', 'HEAD'].includes(request.method) ? null : request.body,
+      });
+
+      const newHeaders = new Headers(response.headers);
+      Object.entries(corsHeaders).forEach(([key, value]) => {
+        newHeaders.set(key, value);
+      });
+
+      return new Response(response.body, {
+        status: response.status,
+        headers: newHeaders
+      });
+    } catch (error) {
+      console.error('Worker error:', error);
+      return new Response(\`Error: \${error.message}\`, {
+        status: 500,
+        headers: { 'Content-Type': 'text/plain', ...corsHeaders }
+      });
+    }
+  }
+};
 EOL
 
 # List contents of build directory
