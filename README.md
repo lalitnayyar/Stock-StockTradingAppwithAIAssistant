@@ -202,6 +202,55 @@ To prevent URL recursion issues (multiple `/_app` in the URL), the following con
    serverPort = 8501
    ```
 
+## Recent Updates and Improvements
+
+### WebSocket Connection Improvements (January 5, 2025)
+- Enhanced WebSocket connection handling in worker.js:
+  - Added specific handling for the /stream endpoint
+  - Improved WebSocket upgrade request handling with proper headers
+  - Better error management and request forwarding
+
+- Implemented robust client connection logic:
+  - Added exponential backoff for connection retries
+  - Maximum retry attempts (10) with increasing delays (1-5 seconds)
+  - Improved error handling and console logging
+  - Added connection close event handling
+  - Better client initialization checks
+
+- Updated worker configuration:
+  - Fixed route patterns for pages.dev
+  - Improved CORS and security headers
+  - Added proper WebSocket upgrade handling
+  - Better static file serving
+
+- Build Process Improvements:
+  - Enhanced build.js script for better asset handling
+  - Added loading screen during initialization
+  - Improved error feedback for users
+  - Better handling of static assets
+
+### Deployment Changes
+- Updated wrangler.toml configuration:
+  ```toml
+  [env.production]
+  workers_dev = true
+  routes = [
+    { pattern = "stock-stocktradingappwithaiassistant.pages.dev/*", zone_name = "pages.dev" }
+  ]
+  ```
+
+### Known Issues and Solutions
+- If you encounter a blank page:
+  1. Check the browser console for WebSocket connection errors
+  2. Ensure your Streamlit server is running on port 8501
+  3. Try refreshing the page - the client will attempt to reconnect automatically
+  4. Clear browser cache if issues persist
+
+### Accessing the Application
+The application is now deployed and accessible at:
+- Main URL: https://stock-stocktradingappwithaiassistant.lalitnayyar.workers.dev
+- Pages URL: https://stock-stocktradingappwithaiassistant.pages.dev
+
 ## Deployment Guide
 
 ### Deploying to Cloudflare Pages
