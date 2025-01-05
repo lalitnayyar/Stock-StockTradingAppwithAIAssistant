@@ -5,11 +5,10 @@ import time
 
 def main():
     # Set environment variables
-    os.environ["STREAMLIT_SERVER_PORT"] = "8501"
+    os.environ["STREAMLIT_SERVER_PORT"] = os.environ.get("PORT", "8501")
     os.environ["STREAMLIT_SERVER_ADDRESS"] = "0.0.0.0"
     os.environ["STREAMLIT_SERVER_HEADLESS"] = "true"
     os.environ["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
-    os.environ["STREAMLIT_SERVER_BASE_URL"] = "/_app"
     os.environ["STREAMLIT_SERVER_ENABLE_CORS"] = "true"
     os.environ["STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION"] = "false"
 
@@ -29,10 +28,9 @@ def main():
         "streamlit",
         "run",
         "app.py",
-        "--server.port=8501",
+        "--server.port=" + os.environ["STREAMLIT_SERVER_PORT"],
         "--server.address=0.0.0.0",
         "--server.headless=true",
-        "--server.baseUrlPath=_app",
         "--server.enableCORS=true",
         "--server.enableXsrfProtection=false",
         "--browser.gatherUsageStats=false"
