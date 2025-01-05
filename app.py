@@ -26,23 +26,28 @@ if 'auto_search_symbol' not in st.session_state:
 
 def extract_stock_symbols(text):
     """Extract stock symbols from text using regex patterns"""
-    # Pattern for stock symbols: Capital letters with optional ^ prefix
+    if not text:
+        return None
+        
+    # Pattern for stock symbols: Capital letters with optional $ prefix
     patterns = [
         r'\$([A-Z]{1,5})\b',  # Matches symbols with $ prefix
         r'\b([A-Z]{1,5})(?=\s*stock|\s*shares|\s*price|\s*symbol|\s*ticker)',  # Matches symbols followed by stock-related words
         r'\bsymbol[:\s]+([A-Z]{1,5})\b',  # Matches symbols after "symbol:"
-        r'\bticker[:\s]+([A-Z]{1,5})\b'   # Matches symbols after "ticker:"
+        r'\bticker[:\s]+([A-Z]{1,5})\b',   # Matches symbols after "ticker:"
+        r'\b([A-Z]{1,5})\b'  # Any standalone capital letters (as last resort)
     ]
     
     symbols = []
     for pattern in patterns:
-        matches = re.finditer(pattern, text)
+        matches = re.finditer(pattern, text.upper())
         for match in matches:
             symbol = match.group(1)
             # Verify if it's a valid stock symbol using yfinance
             try:
                 ticker = yf.Ticker(symbol)
-                if ticker.info:  # If we can get info, it's likely a valid symbol
+                info = ticker.info
+                if info and 'regularMarketPrice' in info:  # Better validation
                     symbols.append(symbol)
             except:
                 continue
@@ -55,6 +60,8 @@ def get_stock_data(symbol, period='1y'):
         stock = yf.Ticker(symbol)
         hist = stock.history(period=period)
         info = stock.info
+        if hist.empty or not info:
+            return None, None
         return hist, info
     except Exception as e:
         st.error(f"Error fetching stock data: {e}")
@@ -69,7 +76,8 @@ def create_candlestick_chart(df):
                                         close=df['Close'])])
     fig.update_layout(title='Stock Price Chart',
                      yaxis_title='Price',
-                     xaxis_title='Date')
+                     xaxis_title='Date',
+                     template='plotly_dark')
     return fig
 
 def get_ai_response(prompt):
@@ -78,6 +86,9 @@ def get_ai_response(prompt):
         return "AI analysis is currently unavailable. Please check back later."
         
     try:
+        # Enhance the prompt to encourage symbol mentions
+        enhanced_prompt = f"Please analyze the following question and include the stock symbol in your response. If a specific company is mentioned, use its stock symbol: {prompt}"
+        
         headers = {
             "Authorization": f"Bearer {API_KEY}",
             "Content-Type": "application/json"
@@ -85,14 +96,19 @@ def get_ai_response(prompt):
         
         data = {
             "model": "deepseek-chat",
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": [{"role": "user", "content": enhanced_prompt}],
             "temperature": 0.7,
             "max_tokens": 500
         }
         
         response = requests.post(API_URL, headers=headers, json=data)
         if response.status_code == 200:
-            return response.json()["choices"][0]["message"]["content"]
+            ai_response = response.json()["choices"][0]["message"]["content"]
+            # Extract symbol from AI response
+            symbol = extract_stock_symbols(ai_response)
+            if symbol:
+                st.session_state.last_mentioned_symbol = symbol
+            return ai_response
         else:
             return f"Error getting AI analysis. Status code: {response.status_code}"
     except Exception as e:
@@ -143,19 +159,26 @@ if user_question:
     else:
         with st.spinner('Getting AI response...'):
             ai_response = get_ai_response(user_question)
-            st.write(ai_response)
+            st.write("AI Response:", ai_response)
             
-            # If a new symbol was found in the response, show details
-            if st.session_state.last_mentioned_symbol:
-                st.success(f"📈 Loading data for {st.session_state.last_mentioned_symbol}...")
-                displayed = display_stock_details(st.session_state.last_mentioned_symbol)
+            # Extract and display stock details from AI response
+            symbol = extract_stock_symbols(ai_response)
+            if symbol:
+                st.session_state.last_mentioned_symbol = symbol
+                st.success(f" Found stock symbol: {symbol}")
+                displayed = display_stock_details(symbol)
                 if not displayed:
-                    st.error(f"Could not load data for {st.session_state.last_mentioned_symbol}")
+                    st.error(f"Could not load data for {symbol}")
 
 # Display stock details from manual search if provided
 if search_query:
     if search_option == "Company Name":
-        symbol = search_query  # In real app, implement company name to symbol conversion
+        # Try to extract symbol from company name
+        symbol = extract_stock_symbols(search_query)
+        if not symbol:
+            st.error("Could not find a valid stock symbol for this company name.")
     else:
         symbol = search_query.upper()
-    display_stock_details(symbol)
+    
+    if symbol:
+        display_stock_details(symbol)
