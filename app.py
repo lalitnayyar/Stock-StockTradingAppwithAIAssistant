@@ -97,6 +97,44 @@ def extract_stock_symbols(text):
     
     return None
 
+def get_deepseek_response(prompt):
+    """Get AI response from DeepSeek API"""
+    if not API_KEY or not API_URL:
+        return None
+    
+    try:
+        # Enhance prompt to get better stock-related responses
+        enhanced_prompt = (
+            "You are a financial analyst assistant. "
+            "Please analyze the following question and provide insights. "
+            "IMPORTANT: Always include stock symbols in your response using the format $SYMBOL (e.g., $AAPL for Apple). "
+            "If you mention any company, you must include its stock symbol. "
+            f"Question: {prompt}"
+        )
+        
+        headers = {
+            "Authorization": f"Bearer {API_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "model": "deepseek-chat",
+            "messages": [{"role": "user", "content": enhanced_prompt}],
+            "temperature": 0.7,
+            "max_tokens": 500
+        }
+        
+        response = requests.post(API_URL, headers=headers, json=data)
+        if response.status_code == 200:
+            return response.json()["choices"][0]["message"]["content"]
+        
+        print(f"API Error: {response.status_code} - {response.text}")
+        return None
+        
+    except Exception as e:
+        print(f"Error calling DeepSeek API: {str(e)}")
+        return None
+
 def validate_stock_symbol(symbol):
     """Validate if a stock symbol exists and is tradeable"""
     try:
@@ -164,7 +202,7 @@ def get_stock_data(symbol, period='1y'):
         st.error(f"Error fetching data for {symbol}: {str(e)}")
         return None, None
 
-def create_candlestick_chart(df, symbol):
+def create_stock_chart(df, symbol):
     """Create a candlestick chart using plotly"""
     fig = go.Figure(data=[go.Candlestick(x=df.index,
                                         open=df['Open'],
@@ -212,119 +250,109 @@ def get_symbol_suggestions(company_name):
 
 def display_stock_details(symbol):
     """Display comprehensive stock details including chart and information"""
-    if not symbol:
-        return False
+    try:
+        # Validate symbol first
+        is_valid, info, error_msg = validate_stock_symbol(symbol)
+        if not is_valid:
+            st.error(error_msg)
+            return False
+            
+        # Create tabs for different types of information
+        tab1, tab2, tab3 = st.tabs(["📈 Chart", "📊 Key Stats", "📰 Company Info"])
         
-    hist_data, stock_info = get_stock_data(symbol)
-    if hist_data is None or stock_info is None:
-        st.error(f"Could not fetch data for {symbol}")
+        with tab1:
+            try:
+                # Get historical data
+                ticker = yf.Ticker(symbol)
+                hist = ticker.history(period='1y')
+                if not hist.empty:
+                    fig = create_stock_chart(hist, symbol)
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.warning("No historical data available for chart visualization.")
+            except Exception as e:
+                st.error(f"Error creating chart: {str(e)}")
+        
+        with tab2:
+            try:
+                if info:
+                    col1, col2 = st.columns(2)
+                    
+                    # Financial Metrics
+                    with col1:
+                        st.subheader("Financial Metrics")
+                        metrics = {
+                            "Market Cap": info.get("marketCap", "N/A"),
+                            "P/E Ratio": info.get("trailingPE", "N/A"),
+                            "EPS": info.get("trailingEps", "N/A"),
+                            "52W High": info.get("fiftyTwoWeekHigh", "N/A"),
+                            "52W Low": info.get("fiftyTwoWeekLow", "N/A"),
+                            "Volume": info.get("volume", "N/A")
+                        }
+                        
+                        for key, value in metrics.items():
+                            if isinstance(value, (int, float)):
+                                if key == "Market Cap":
+                                    value = f"${value:,.0f}"
+                                elif value > 1000000:
+                                    value = f"{value:,.2f}"
+                                else:
+                                    value = f"{value:.2f}"
+                            st.metric(key, value)
+                    
+                    # Trading Info
+                    with col2:
+                        st.subheader("Trading Information")
+                        trading_info = {
+                            "Current Price": info.get("currentPrice", info.get("regularMarketPrice", "N/A")),
+                            "Open": info.get("regularMarketOpen", "N/A"),
+                            "Previous Close": info.get("regularMarketPreviousClose", "N/A"),
+                            "Day High": info.get("regularMarketDayHigh", "N/A"),
+                            "Day Low": info.get("regularMarketDayLow", "N/A"),
+                            "Volume": info.get("regularMarketVolume", "N/A")
+                        }
+                        
+                        for key, value in trading_info.items():
+                            if isinstance(value, (int, float)):
+                                if key == "Volume":
+                                    value = f"{value:,.0f}"
+                                else:
+                                    value = f"${value:.2f}"
+                            st.metric(key, value)
+                else:
+                    st.warning("Detailed financial data not available.")
+            except Exception as e:
+                st.error(f"Error displaying financial metrics: {str(e)}")
+        
+        with tab3:
+            try:
+                if info:
+                    # Company Information
+                    st.subheader("Company Information")
+                    company_info = {
+                        "Name": info.get("longName", "N/A"),
+                        "Industry": info.get("industry", "N/A"),
+                        "Sector": info.get("sector", "N/A"),
+                        "Website": info.get("website", "N/A"),
+                        "Description": info.get("longBusinessSummary", "N/A")
+                    }
+                    
+                    for key, value in company_info.items():
+                        if key == "Description":
+                            st.markdown(f"**{key}:**")
+                            st.write(value)
+                        else:
+                            st.markdown(f"**{key}:** {value}")
+                else:
+                    st.warning("Company information not available.")
+            except Exception as e:
+                st.error(f"Error displaying company information: {str(e)}")
+        
+        return True
+        
+    except Exception as e:
+        st.error(f"Error displaying stock details: {str(e)}")
         return False
-    
-    # Company Header with Current Price
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        st.title(f"{stock_info.get('longName', symbol)} ({symbol})")
-    with col2:
-        current_price = stock_info.get('regularMarketPrice', 'N/A')
-        prev_close = stock_info.get('previousClose', 'N/A')
-        if current_price != 'N/A' and prev_close != 'N/A':
-            price_change = current_price - prev_close
-            price_change_pct = (price_change / prev_close) * 100
-            price_color = "green" if price_change >= 0 else "red"
-            st.markdown(f"""
-                <div style='text-align: right'>
-                    <h2 style='margin: 0; color: {price_color}'>${current_price:.2f}</h2>
-                    <p style='margin: 0; color: {price_color}'>
-                        {price_change:+.2f} ({price_change_pct:+.2f}%)
-                    </p>
-                </div>
-            """, unsafe_allow_html=True)
-    
-    # Key Statistics Grid
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.metric("Previous Close", f"${prev_close:.2f}" if prev_close != 'N/A' else 'N/A')
-        st.metric("Open", f"${stock_info.get('open', 'N/A'):.2f}")
-    
-    with col2:
-        st.metric("Day's Range", f"${stock_info.get('dayLow', 'N/A'):.2f} - ${stock_info.get('dayHigh', 'N/A'):.2f}")
-        st.metric("52 Week Range", f"${stock_info.get('fiftyTwoWeekLow', 'N/A'):.2f} - ${stock_info.get('fiftyTwoWeekHigh', 'N/A'):.2f}")
-    
-    with col3:
-        market_cap = stock_info.get('marketCap', 'N/A')
-        if market_cap != 'N/A':
-            if market_cap >= 1e12:
-                market_cap_str = f"${market_cap/1e12:.2f}T"
-            elif market_cap >= 1e9:
-                market_cap_str = f"${market_cap/1e9:.2f}B"
-            else:
-                market_cap_str = f"${market_cap/1e6:.2f}M"
-        else:
-            market_cap_str = 'N/A'
-        st.metric("Market Cap", market_cap_str)
-        st.metric("Beta", f"{stock_info.get('beta', 'N/A'):.2f}")
-    
-    with col4:
-        st.metric("Volume", f"{stock_info.get('volume', 'N/A'):,}")
-        st.metric("Avg. Volume", f"{stock_info.get('averageVolume', 'N/A'):,}")
-    
-    # Display chart
-    st.plotly_chart(create_candlestick_chart(hist_data, symbol), use_container_width=True)
-    
-    # Company Information and Additional Metrics
-    tab1, tab2, tab3 = st.tabs(["📊 Financial Metrics", "🏢 Company Info", "📈 Additional Stats"])
-    
-    with tab1:
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("### Valuation Metrics")
-            st.write(f"- P/E Ratio (TTM): {stock_info.get('trailingPE', 'N/A')}")
-            st.write(f"- Forward P/E: {stock_info.get('forwardPE', 'N/A')}")
-            st.write(f"- EPS (TTM): ${stock_info.get('trailingEps', 'N/A')}")
-            st.write(f"- Forward EPS: ${stock_info.get('forwardEps', 'N/A')}")
-        with col2:
-            st.markdown("### Dividend Information")
-            st.write(f"- Dividend Rate: ${stock_info.get('dividendRate', 'N/A')}")
-            st.write(f"- Dividend Yield: {stock_info.get('dividendYield', 'N/A')}%")
-            st.write(f"- Ex-Dividend Date: {stock_info.get('exDividendDate', 'N/A')}")
-            st.write(f"- Payout Ratio: {stock_info.get('payoutRatio', 'N/A')}")
-    
-    with tab2:
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("### Company Profile")
-            st.write(f"- Sector: {stock_info.get('sector', 'N/A')}")
-            st.write(f"- Industry: {stock_info.get('industry', 'N/A')}")
-            st.write(f"- Employees: {stock_info.get('fullTimeEmployees', 'N/A'):,}")
-            st.write(f"- Country: {stock_info.get('country', 'N/A')}")
-        with col2:
-            st.markdown("### Additional Information")
-            st.write(f"- Website: {stock_info.get('website', 'N/A')}")
-            st.write(f"- CEO: {stock_info.get('companyOfficers', [{}])[0].get('name', 'N/A')}")
-            st.write(f"- Founded: {stock_info.get('foundedYear', 'N/A')}")
-            st.write(f"- Exchange: {stock_info.get('exchange', 'N/A')}")
-    
-    with tab3:
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("### Trading Statistics")
-            st.write(f"- 50-Day Moving Average: ${stock_info.get('fiftyDayAverage', 'N/A'):.2f}")
-            st.write(f"- 200-Day Moving Average: ${stock_info.get('twoHundredDayAverage', 'N/A'):.2f}")
-            st.write(f"- Short Ratio: {stock_info.get('shortRatio', 'N/A')}")
-            st.write(f"- Short % of Float: {stock_info.get('shortPercentOfFloat', 'N/A')}%")
-        with col2:
-            st.markdown("### Price Targets")
-            st.write(f"- Analyst Target Price: ${stock_info.get('targetMeanPrice', 'N/A'):.2f}")
-            st.write(f"- Target High: ${stock_info.get('targetHighPrice', 'N/A'):.2f}")
-            st.write(f"- Target Low: ${stock_info.get('targetLowPrice', 'N/A'):.2f}")
-            st.write(f"- Number of Analysts: {stock_info.get('numberOfAnalystOpinions', 'N/A')}")
-    
-    # Company Description
-    with st.expander("📝 Company Description"):
-        st.write(stock_info.get('longBusinessSummary', 'No description available.'))
-    
-    return True
 
 # Main content
 st.title("Stock Trading Application")
