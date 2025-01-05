@@ -12,7 +12,7 @@ import re
 load_dotenv()
 
 # Configure page
-st.set_page_config(page_title="Stock Trading App", layout="wide")
+st.set_page_config(page_title="Stock StarLink AI App ", layout="wide")
 
 # Initialize API configuration
 API_KEY = os.getenv('DEEPSEEK_API_KEY')
