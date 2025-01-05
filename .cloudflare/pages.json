@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "name": "stock-trading-app",
+  "build": {
+    "command": "pip install -r requirements.txt && streamlit build app.py",
+    "output_directory": "build_output",
+    "root_directory": "."
+  },
+  "routes": [
+    { "pattern": "/*", "script": "worker.js" }
+  ],
+  "compatibility_flags": ["python_workers"]
+}

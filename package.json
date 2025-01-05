@@ -2,9 +2,9 @@
   "name": "stock-trading-app",
   "version": "1.0.0",
   "description": "Stock Trading Application with AI Assistant",
-  "main": "worker/worker.js",
+  "main": "worker.js",
   "scripts": {
-    "build": "chmod +x build.sh && ./build.sh",
+    "build": "node build.js",
     "start": "python start.py",
     "deploy": "wrangler deploy",
     "dev": "wrangler dev"
