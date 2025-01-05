@@ -22,27 +22,10 @@ def main():
 
     # Run the Streamlit app
     print("Starting Streamlit app...")
-    process = subprocess.Popen([
-        sys.executable,
-        "-m",
-        "streamlit",
-        "run",
-        "app.py",
-        "--server.port=" + os.environ["STREAMLIT_SERVER_PORT"],
-        "--server.address=0.0.0.0",
-        "--server.headless=true",
-        "--server.enableCORS=true",
-        "--server.enableXsrfProtection=false",
-        "--browser.gatherUsageStats=false"
-    ])
-
-    # Keep the script running
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        process.terminate()
-        process.wait()
+    import streamlit.web.cli as stcli
+    
+    sys.argv = ["streamlit", "run", "app.py"]
+    sys.exit(stcli.main())
 
 if __name__ == "__main__":
     main()
