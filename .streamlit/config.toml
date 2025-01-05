@@ -6,13 +6,12 @@ baseUrlPath = "_app"
 enableCORS = true
 enableXsrfProtection = false
 maxUploadSize = 200
-maxMessageSize = 200
 runOnSave = true
 
 [browser]
 serverAddress = "0.0.0.0"
-serverPort = 8501
 gatherUsageStats = false
+serverPort = 8501
 
 [theme]
 primaryColor = "#E694FF"
@@ -28,3 +27,6 @@ showfileUploaderEncoding = false
 [global]
 developmentMode = false
 showWarningOnDirectExecution = false
+
+[mapbox]
+token = ""

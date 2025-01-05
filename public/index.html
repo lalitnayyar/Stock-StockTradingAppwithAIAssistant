@@ -42,10 +42,12 @@
     </div>
     <script>
         function redirectToApp() {
-            const currentUrl = window.location.href;
-            const baseUrl = currentUrl.split('?')[0]; // Remove any query parameters
-            const targetUrl = baseUrl.replace(/\/?$/, '/_app'); // Ensure proper path joining
-            window.location.replace(targetUrl);
+            const currentPath = window.location.pathname;
+            // Only redirect if we're not already at /_app
+            if (!currentPath.includes('/_app')) {
+                const baseUrl = window.location.origin;
+                window.location.replace(baseUrl + '/_app');
+            }
         }
         // Redirect after a short delay to ensure the loading animation is shown
         setTimeout(redirectToApp, 1000);

@@ -164,6 +164,148 @@ A modern, interactive stock trading application built with Streamlit that provid
 
 This tech stack was chosen for its reliability, performance, and seamless integration capabilities, making the Stock StarLink AI App a robust and scalable solution for stock market analysis and AI-powered trading insights.
 
+## Deployment Guide
+
+### Deploying to Cloudflare Pages
+
+1. **Prerequisites**
+   - A GitHub account
+   - A Cloudflare account
+   - Your DeepSeek API key
+
+2. **Set Up Cloudflare Pages**
+   1. Log in to your Cloudflare account
+   2. Go to Pages > Create a project
+   3. Connect your GitHub account
+   4. Select your repository
+   5. Configure build settings:
+      - Framework preset: None
+      - Build command: `python start.py`
+      - Build output directory: `public`
+      - Root directory: `/`
+      - Environment variables:
+        ```
+        PYTHON_VERSION=3.11
+        ```
+
+3. **Environment Variables**
+   In Cloudflare Pages settings:
+   1. Go to Settings > Environment Variables
+   2. Add the following variables:
+      ```
+      DEEPSEEK_API_KEY=your_api_key_here
+      PYTHON_VERSION=3.11
+      STREAMLIT_SERVER_PORT=8501
+      STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      STREAMLIT_SERVER_HEADLESS=true
+      STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+      STREAMLIT_SERVER_BASE_URL=/_app
+      ```
+
+   Note: Make sure to replace `your_api_key_here` with your actual DeepSeek API key.
+
+4. **Advanced Build Settings**
+   In your project's Settings > Builds & deployments:
+   1. Set the Production branch: main
+   2. Build configurations:
+      - Set "Build command timeout" to 20 minutes
+      - Enable "Always use latest framework version"
+   3. Environment:
+      - Set Python version to 3.11
+      - Add `requirements.txt` to the dependency cache
+
+5. **Important Files**
+   The repository contains several configuration files for proper deployment:
+
+   - `public/index.html`: Handles redirection and provides a loading screen
+     ```html
+     <!DOCTYPE html>
+     <html>
+     <head>
+         <title>Stock Trading App</title>
+         <!-- Styles and loading animation -->
+     </head>
+     <body>
+         <div class="container">
+             <h1>Stock Trading App</h1>
+             <div class="spinner"></div>
+             <div class="loading">Loading application...</div>
+         </div>
+         <!-- Redirect script -->
+     </body>
+     </html>
+     ```
+
+   - `public/_redirects`: Configures routing rules
+     ```
+     /* /_app 200!
+     /_app/* /_app 200!
+     ```
+
+   - `public/_headers`: Sets security and caching headers
+     ```
+     /*
+       X-Frame-Options: DENY
+       X-Content-Type-Options: nosniff
+       Referrer-Policy: no-referrer
+       Permissions-Policy: document-domain=()
+       Cache-Control: no-cache, no-store, must-revalidate
+
+     /_app/*
+       Cache-Control: no-cache, no-store, must-revalidate
+     ```
+
+   - `.streamlit/config.toml`: Configures Streamlit settings
+     ```toml
+     [server]
+     port = 8501
+     address = "0.0.0.0"
+     headless = true
+     baseUrlPath = "_app"
+     enableCORS = true
+     enableXsrfProtection = false
+     maxUploadSize = 200
+     runOnSave = true
+
+     [browser]
+     serverAddress = "0.0.0.0"
+     gatherUsageStats = false
+     serverPort = 8501
+
+     [theme]
+     primaryColor = "#E694FF"
+     backgroundColor = "#00172B"
+     secondaryBackgroundColor = "#0083B8"
+     textColor = "#DCDCDC"
+     ```
+
+6. **After Deployment**
+   - Your app will be available at: `https://your-project.pages.dev`
+   - It will automatically redirect to: `https://your-project.pages.dev/_app`
+   - If you encounter any issues:
+     1. Clear your browser cache
+     2. Check the deployment logs in Cloudflare Pages
+     3. Verify all environment variables are set correctly
+     4. Ensure the build command completed successfully
+
+7. **Troubleshooting**
+   - If the app shows "Unable to connect":
+     - Wait a few minutes for the deployment to fully complete
+     - Check if the app is running by visiting `/_app` directly
+     - Verify the environment variables are set correctly
+   - If you see a blank page:
+     - Clear your browser cache
+     - Check the browser console for any errors
+     - Verify the redirect rules are working properly
+
+8. **Development vs Production**
+   - Local development:
+     - App runs on: `http://localhost:8501`
+     - Environment variables from `.env` file
+   - Production (Cloudflare Pages):
+     - App runs on: `https://your-project.pages.dev/_app`
+     - Environment variables from Cloudflare Pages settings
+
 ## Installation
 
 1. Clone the repository:
@@ -217,133 +359,6 @@ Example questions:
 - Hover over data points to see detailed information
 - Use the chart controls to zoom and pan
 - Export chart data if needed
-
-## Deployment on Cloudflare Pages
-
-### Prerequisites
-1. A GitHub account
-2. A Cloudflare account
-3. Your project pushed to a GitHub repository
-
-### Deployment Steps
-
-1. **Prepare Your Repository**
-   ```bash
-   # Initialize git repository (if not already done)
-   git init
-   
-   # Add all files
-   git add .
-   
-   # Commit changes
-   git commit -m "Initial commit"
-   
-   # Add your GitHub repository as remote
-   git remote add origin your-github-repo-url
-   
-   # Push to GitHub
-   git push -u origin main
-   ```
-
-2. **Set Up Cloudflare Pages**
-   1. Log in to your Cloudflare account
-   2. Go to Pages > Create a project
-   3. Connect your GitHub account
-   4. Select your repository
-   5. Configure build settings:
-      - Framework preset: None
-      - Build command: `python start.py`
-      - Build output directory: `public`
-      - Root directory: `/`
-      - Environment variables:
-        ```
-        PYTHON_VERSION=3.11
-        ```
-
-3. **Environment Variables**
-   In Cloudflare Pages settings:
-   1. Go to Settings > Environment Variables
-   2. Add the following variables:
-      ```
-      DEEPSEEK_API_KEY=your_api_key_here
-      PYTHON_VERSION=3.11
-      STREAMLIT_SERVER_PORT=8501
-      STREAMLIT_SERVER_ADDRESS=0.0.0.0
-      STREAMLIT_SERVER_HEADLESS=true
-      STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
-      STREAMLIT_SERVER_BASE_URL=/_app
-      ```
-
-   Note: Make sure to replace `your_api_key_here` with your actual DeepSeek API key.
-
-4. **Advanced Build Settings**
-   In your project's Settings > Builds & deployments:
-   1. Set the Production branch: main
-   2. Build configurations:
-      - Set "Build command timeout" to 20 minutes
-      - Enable "Always use latest framework version"
-   3. Environment:
-      - Set Python version to 3.11
-      - Add `requirements.txt` to the dependency cache
-
-### Post-Deployment
-
-1. **Custom Domain (Optional)**
-   1. Go to your project's settings in Cloudflare Pages
-   2. Click on "Custom Domains"
-   3. Add your domain and follow the DNS configuration instructions
-
-2. **Monitoring**
-   1. Monitor your app's performance in the Cloudflare dashboard
-   2. Check build logs for any issues
-   3. Set up notifications for failed deployments
-
-3. **Updating the App**
-   1. Push changes to your GitHub repository
-   2. Cloudflare will automatically rebuild and deploy
-
-### Troubleshooting
-
-1. **Build Failures**
-   - Check build logs in Cloudflare Pages
-   - Verify all dependencies are in `requirements.txt`
-   - Ensure environment variables are set correctly
-
-2. **Runtime Errors**
-   - Check the application logs
-   - Verify API keys and environment variables
-   - Test locally before deploying
-
-3. **Performance Issues**
-   - Monitor resource usage
-   - Check Cloudflare Analytics
-   - Consider caching strategies
-
-### Security Notes
-
-1. **Environment Variables**
-   - Never commit `.env` file to repository
-   - Use Cloudflare's environment variables
-   - Rotate API keys periodically
-
-2. **API Access**
-   - Set up appropriate CORS policies
-   - Use rate limiting
-   - Monitor API usage
-
-### Maintenance
-
-1. **Regular Updates**
-   - Keep dependencies updated
-   - Monitor security advisories
-   - Test updates locally before deploying
-
-2. **Backup**
-   - Regularly backup your code
-   - Keep local copies of configuration
-   - Document any custom settings
-
-For additional support or questions about deployment, refer to [Cloudflare Pages documentation](https://developers.cloudflare.com/pages/).
 
 ## Dependencies
 
