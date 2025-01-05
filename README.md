@@ -250,22 +250,38 @@ Example questions:
    2. Go to Pages > Create a project
    3. Connect your GitHub account
    4. Select your repository
-   5. Configure your build settings:
+   5. Configure build settings:
       - Framework preset: None
-      - Build command: `pip install -r requirements.txt && streamlit run app.py`
-      - Build output directory: `/`
+      - Build command: `chmod +x start.sh && ./start.sh`
+      - Build output directory: `public`
       - Root directory: `/`
+      - Environment variables:
+        ```
+        PYTHON_VERSION=3.11
+        PORT=8501
+        ```
 
 3. **Environment Variables**
-   1. In Cloudflare Pages settings, go to Environment Variables
-   2. Add your environment variables:
-      - Add `DEEPSEEK_API_KEY` with your API key
-      - Add `PYTHON_VERSION=3.11.0`
+   In Cloudflare Pages settings:
+   1. Go to Settings > Environment Variables
+   2. Add the following variables:
+      ```
+      DEEPSEEK_API_KEY=your_api_key_here
+      STREAMLIT_SERVER_PORT=8501
+      STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+      STREAMLIT_SERVER_BASE_URL_PATH=/app
+      ```
 
-4. **Deploy**
-   1. Click on "Save and Deploy"
-   2. Wait for the build and deployment to complete
-   3. Your app will be available at: `your-project-name.pages.dev`
+4. **Advanced Build Settings**
+   In your project's Settings > Builds & deployments:
+   1. Set the Production branch: main
+   2. Build configurations:
+      - Set "Build command timeout" to 20 minutes
+      - Enable "Always use latest framework version"
+   3. Environment:
+      - Set Python version to 3.11
+      - Add `requirements.txt` to the dependency cache
 
 ### Post-Deployment
 
