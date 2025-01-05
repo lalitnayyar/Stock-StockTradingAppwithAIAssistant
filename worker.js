@@ -23,9 +23,9 @@ export default {
 
     try {
       // Handle WebSocket upgrade requests for /stream endpoint
-      if (request.headers.get('Upgrade')?.toLowerCase() === 'websocket') {
+      if (request.headers.get('Upgrade')?.toLowerCase() === 'websocket' && url.pathname === '/stream') {
         // Forward WebSocket connection to Streamlit backend
-        const streamlitUrl = 'wss://127.0.0.1:8501/stream';
+        const streamlitUrl = new URL('ws://127.0.0.1:8501/stream');
         const upgradeHeader = request.headers.get('Upgrade');
         const connectionHeader = request.headers.get('Connection');
         const secWebSocketKey = request.headers.get('Sec-WebSocket-Key');
@@ -38,14 +38,19 @@ export default {
           'Sec-WebSocket-Key': secWebSocketKey,
           'Sec-WebSocket-Protocol': secWebSocketProtocol,
           'Sec-WebSocket-Version': secWebSocketVersion,
-          'Host': '127.0.0.1:8501',
-          'Origin': 'https://127.0.0.1:8501'
+          'Host': '127.0.0.1:8501'
         });
 
-        return fetch(streamlitUrl, {
+        // Add CORS headers for WebSocket
+        Object.entries(corsHeaders).forEach(([key, value]) => {
+          headers.set(key, value);
+        });
+
+        return fetch(streamlitUrl.toString(), {
           method: 'GET',
           headers: headers,
-          body: request.body
+          body: request.body,
+          webSocket: true // Enable WebSocket proxy
         });
       }
 
@@ -78,7 +83,7 @@ export default {
       }
 
       // Forward all other requests to Streamlit
-      const streamlitUrl = new URL(url.pathname + url.search, 'https://127.0.0.1:8501');
+      const streamlitUrl = new URL(url.pathname + url.search, 'http://127.0.0.1:8501');
       const response = await fetch(streamlitUrl.toString(), {
         method: request.method,
         headers: {
@@ -98,7 +103,7 @@ export default {
       });
       
       // Add additional security headers
-      newHeaders.set('Content-Security-Policy', "default-src 'self' 'unsafe-inline' 'unsafe-eval' https: wss:; img-src 'self' data: https:; worker-src 'self' blob:");
+      newHeaders.set('Content-Security-Policy', "default-src 'self' 'unsafe-inline' 'unsafe-eval' https: wss:; img-src 'self' data: https:; worker-src 'self' blob:; connect-src 'self' wss: https:;");
       newHeaders.set('X-Content-Type-Options', 'nosniff');
       newHeaders.set('X-Frame-Options', 'SAMEORIGIN');
       newHeaders.set('X-XSS-Protection', '1; mode=block');

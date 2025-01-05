@@ -20,8 +20,9 @@ const clientJs = `
 
             function tryConnect() {
                 try {
-                    // Always use secure WebSocket
-                    const wsUrl = 'wss://' + window.location.host + '/stream';
+                    // Use the worker URL for WebSocket connection
+                    const workerDomain = 'stock-stocktradingappwithaiassistant.lalitnayyar.workers.dev';
+                    const wsUrl = 'wss://' + workerDomain + '/stream';
                     
                     console.log('Connecting to WebSocket:', wsUrl);
                     const ws = new WebSocket(wsUrl);
@@ -99,7 +100,7 @@ const indexHtml = `<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https: wss:; img-src 'self' data: https:; worker-src 'self' blob:">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https: wss:; img-src 'self' data: https:; worker-src 'self' blob:; connect-src 'self' wss: https:;">
     <title>Stock Trading App</title>
     <script src="/static/streamlit-client.js" defer></script>
     <style>
@@ -135,6 +136,8 @@ const indexHtml = `<!DOCTYPE html>
             text-align: center;
             padding: 20px;
             max-width: 80%;
+            font-size: 16px;
+            line-height: 1.5;
         }
         @keyframes spin {
             0% { transform: rotate(0deg); }
