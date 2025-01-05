@@ -36,13 +36,31 @@ def kill_process_on_port(port):
                 pid = result.split()[-1]
                 subprocess.run(['taskkill', '/F', '/PID', pid], capture_output=True)
         else:
-            cmd = f"lsof -ti :{port}"
+            # Try different commands to find and kill the process
             try:
-                pid = subprocess.check_output(cmd, shell=True).decode().strip()
-                if pid:
-                    subprocess.run(['kill', '-9', pid], check=False)
-            except subprocess.CalledProcessError:
-                pass  # No process found on port
+                # Try ss command first (usually available on modern Linux)
+                cmd = f"ss -lptn 'sport = :{port}'"
+                output = subprocess.check_output(cmd, shell=True).decode()
+                if output:
+                    pid = output.split('pid=')[-1].split(',')[0]
+                    if pid:
+                        subprocess.run(['kill', '-9', pid], check=False)
+            except:
+                try:
+                    # Try netstat as fallback
+                    cmd = f"netstat -tlpn | grep :{port}"
+                    output = subprocess.check_output(cmd, shell=True).decode()
+                    if output:
+                        pid = output.split()[-1].split('/')[0]
+                        if pid:
+                            subprocess.run(['kill', '-9', pid], check=False)
+                except:
+                    # If both fail, try fuser as last resort
+                    try:
+                        cmd = f"fuser -k {port}/tcp"
+                        subprocess.run(cmd, shell=True, check=False)
+                    except:
+                        pass  # If all methods fail, continue anyway
     except Exception as e:
         print(f"Warning: Could not kill process on port {port}: {e}")
 
@@ -69,7 +87,10 @@ class StreamlitRunner:
                 self.process.terminate()
                 self.process.wait(timeout=5)
             except:
-                self.process.kill()
+                try:
+                    self.process.kill()
+                except:
+                    pass
     
     def run(self):
         """Run the Streamlit application"""
@@ -133,7 +154,8 @@ class StreamlitRunner:
                     if not any(msg in line for msg in [
                         'Reshimming asdf python',
                         'new release of pip',
-                        'To update, run: pip'
+                        'To update, run: pip',
+                        'ASDF_PYTHON_VERSION'
                     ]):
                         print(line.strip())
                         
