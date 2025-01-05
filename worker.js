@@ -18,17 +18,17 @@ export default {
       
       // Handle WebSocket upgrade requests
       if (request.headers.get('Upgrade') === 'websocket') {
-        const streamlitUrl = new URL(url.pathname, 'http://127.0.0.1:8501');
-        return fetch(streamlitUrl.toString(), {
-          method: request.method,
+        return fetch('http://127.0.0.1:8501' + url.pathname + url.search, {
           headers: request.headers,
-          body: request.body
+          method: request.method,
+          body: request.body,
+          redirect: 'follow'
         });
       }
 
       // Serve static files
       if (url.pathname.startsWith('/static/')) {
-        const response = await fetch(request);
+        const response = await env.ASSETS.fetch(request);
         if (response.ok) {
           const newHeaders = new Headers(response.headers);
           Object.entries(corsHeaders).forEach(([key, value]) => {
@@ -41,14 +41,22 @@ export default {
         }
       }
 
-      // Handle root and app paths
+      // Handle root path
       if (url.pathname === '/' || url.pathname === '/index.html') {
-        return Response.redirect(`${url.origin}/app`, 301);
+        const response = await env.ASSETS.fetch(new Request(new URL('/index.html', request.url)));
+        const newHeaders = new Headers(response.headers);
+        Object.entries(corsHeaders).forEach(([key, value]) => {
+          newHeaders.set(key, value);
+        });
+        return new Response(response.body, {
+          status: response.status,
+          headers: newHeaders
+        });
       }
 
       // Forward to Streamlit
-      const streamlitUrl = `http://127.0.0.1:8501${url.pathname}${url.search}`;
-      const response = await fetch(streamlitUrl, {
+      const streamlitUrl = new URL(url.pathname + url.search, 'http://127.0.0.1:8501');
+      const response = await fetch(streamlitUrl.toString(), {
         method: request.method,
         headers: {
           ...Object.fromEntries(request.headers),
@@ -57,7 +65,8 @@ export default {
           'X-Real-IP': request.headers.get('cf-connecting-ip') || '',
           'X-Forwarded-For': request.headers.get('cf-connecting-ip') || ''
         },
-        body: ['GET', 'HEAD'].includes(request.method) ? null : request.body
+        body: ['GET', 'HEAD'].includes(request.method) ? null : request.body,
+        redirect: 'follow'
       });
 
       // Create new response with CORS headers
@@ -79,6 +88,7 @@ export default {
         status: response.status,
         headers: newHeaders
       });
+
     } catch (error) {
       console.error('Worker error:', error);
       return new Response(`Error: ${error.message}`, {

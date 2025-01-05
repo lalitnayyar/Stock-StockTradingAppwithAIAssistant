@@ -11,55 +11,138 @@ fs.mkdirSync(path.join('build_output', 'static'));
 // Create streamlit-client.js
 const clientJs = `
 // Initialize Streamlit client
-window.addEventListener('DOMContentLoaded', function() {
-    // Create WebSocket connection
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = wsProtocol + '//' + window.location.host + '/stream';
-    
-    const ws = new WebSocket(wsUrl);
-    ws.onopen = () => console.log('WebSocket connected');
-    ws.onerror = (error) => console.error('WebSocket error:', error);
-    
-    const client = {
-        sendMessage: function(message) {
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify(message));
+(function() {
+    function initStreamlit() {
+        return new Promise((resolve, reject) => {
+            const maxAttempts = 10;
+            let attempts = 0;
+
+            function tryConnect() {
+                try {
+                    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    const wsUrl = wsProtocol + '//' + window.location.host + '/stream';
+                    
+                    console.log('Connecting to WebSocket:', wsUrl);
+                    const ws = new WebSocket(wsUrl);
+                    
+                    ws.onopen = () => {
+                        console.log('WebSocket connected successfully');
+                        const client = {
+                            sendMessage: function(message) {
+                                if (ws.readyState === WebSocket.OPEN) {
+                                    ws.send(JSON.stringify(message));
+                                }
+                            },
+                            onMessage: function(callback) {
+                                ws.onmessage = (event) => callback(JSON.parse(event.data));
+                            }
+                        };
+                        window.streamlitClient = client;
+                        resolve(client);
+                    };
+                    
+                    ws.onerror = (error) => {
+                        console.error('WebSocket error:', error);
+                        attempts++;
+                        if (attempts < maxAttempts) {
+                            console.log(\`Retrying connection (attempt \${attempts}/\${maxAttempts})...\`);
+                            setTimeout(tryConnect, 1000);
+                        } else {
+                            reject(new Error('Failed to connect to WebSocket after multiple attempts'));
+                        }
+                    };
+                } catch (error) {
+                    console.error('Error initializing WebSocket:', error);
+                    reject(error);
+                }
             }
-        },
-        onMessage: function(callback) {
-            ws.onmessage = (event) => callback(JSON.parse(event.data));
-        }
-    };
-    
-    window.streamlitClient = client;
-});
-`;
+
+            tryConnect();
+        });
+    }
+
+    // Initialize when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initStreamlit);
+    } else {
+        initStreamlit();
+    }
+})();`;
 
 fs.writeFileSync(path.join('build_output', 'static', 'streamlit-client.js'), clientJs);
 
 // Create index.html
-const indexHtml = `
-<!DOCTYPE html>
+const indexHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stock Trading App</title>
     <script src="/static/streamlit-client.js" defer></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background: #0E1117;
+            color: #FAFAFA;
+        }
+        #loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #0E1117;
+            z-index: 1000;
+        }
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #FF4B4B;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
 </head>
 <body>
+    <div id="loading">
+        <div class="spinner"></div>
+    </div>
     <div id="root"></div>
     <script>
-        // Wait for client to initialize before redirecting
         window.addEventListener('DOMContentLoaded', function() {
-            setTimeout(() => {
-                window.location.href = '/app';
-            }, 100);
+            // Wait for client initialization
+            const maxWaitTime = 10000; // 10 seconds
+            const startTime = Date.now();
+            
+            function checkAndRedirect() {
+                if (window.streamlitClient) {
+                    console.log('Streamlit client initialized, redirecting to /app');
+                    setTimeout(() => {
+                        window.location.href = '/app';
+                    }, 100);
+                } else if (Date.now() - startTime < maxWaitTime) {
+                    setTimeout(checkAndRedirect, 100);
+                } else {
+                    console.error('Failed to initialize Streamlit client');
+                    document.getElementById('loading').innerHTML = '<p>Failed to load application. Please refresh the page.</p>';
+                }
+            }
+            
+            checkAndRedirect();
         });
     </script>
 </body>
-</html>
-`;
+</html>`;
 
 fs.writeFileSync(path.join('build_output', 'index.html'), indexHtml);
 
@@ -87,7 +170,7 @@ if (fs.existsSync('static')) {
 }
 
 // Create .streamlit directory and config
-fs.mkdirSync(path.join('build_output', '.streamlit'));
+fs.mkdirSync(path.join('build_output', '.streamlit'), { recursive: true });
 const streamlitConfig = `[server]
 port = 8501
 address = "0.0.0.0"
