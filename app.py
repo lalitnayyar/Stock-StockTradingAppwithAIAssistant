@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 import plotly.graph_objects as go
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.ensemble import RandomForestRegressor
+import requests
+import json
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -27,6 +29,66 @@ if 'selected_stock' not in st.session_state:
     st.session_state['selected_stock'] = 'AAPL'
 if 'prediction_days' not in st.session_state:
     st.session_state['prediction_days'] = 30
+if 'ai_analysis' not in st.session_state:
+    st.session_state.ai_analysis = None
+
+def get_deepseek_analysis(symbol, historical_data):
+    """Get stock analysis using DeepSeek API"""
+    try:
+        api_key = st.secrets["DEEPSEEK_API_KEY"]
+        if not api_key:
+            return "DeepSeek API key not found"
+
+        # Prepare recent price data
+        recent_prices = historical_data['Close'].tail(5).tolist()
+        current_price = recent_prices[-1]
+        price_change = ((current_price - recent_prices[0]) / recent_prices[0]) * 100
+        
+        headers = {
+            'Authorization': f'Bearer {api_key}',
+            'Content-Type': 'application/json'
+        }
+        
+        data = {
+            "model": "deepseek-chat",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a professional stock market analyst specializing in technical and fundamental analysis."
+                },
+                {
+                    "role": "user",
+                    "content": f"""Analyze the stock {symbol} with the following data:
+                    Current Price: ${current_price:.2f}
+                    5-day Price Change: {price_change:.2f}%
+                    
+                    Provide a detailed analysis including:
+                    1. Technical Analysis
+                    2. Market Sentiment
+                    3. Risk Assessment (Low/Medium/High)
+                    4. Price Target (7-day forecast)
+                    5. Key Trading Indicators
+                    
+                    Format the response in a clear, structured manner."""
+                }
+            ],
+            "temperature": 0.7,
+            "max_tokens": 500
+        }
+        
+        response = requests.post(
+            'https://api.deepseek.com/v1/chat/completions',
+            headers=headers,
+            json=data
+        )
+        
+        if response.status_code == 200:
+            return response.json()['choices'][0]['message']['content']
+        else:
+            return f"API Error: {response.status_code} - {response.text}"
+            
+    except Exception as e:
+        return f"Analysis Error: {str(e)}"
 
 def load_stock_data():
     """Load stock data from yfinance"""
@@ -63,127 +125,138 @@ def calculate_indicators(data):
     return data
 
 def prepare_data(data, lookback=60):
-    """Prepare data for prediction"""
+    """Prepare data for model training"""
     scaler = MinMaxScaler()
-    scaled_data = scaler.fit_transform(data['Close'].values.reshape(-1, 1))
+    scaled_data = scaler.fit_transform(data[['Close']])
     
     X, y = [], []
     for i in range(lookback, len(scaled_data)):
-        X.append(scaled_data[i-lookback:i, 0])
-        y.append(scaled_data[i, 0])
+        X.append(scaled_data[i-lookback:i])
+        y.append(scaled_data[i])
     
-    X = np.array(X)
-    y = np.array(y)
-    
-    return X, y, scaler
+    return np.array(X), np.array(y), scaler
 
 def train_model(X, y):
     """Train Random Forest model"""
     model = RandomForestRegressor(n_estimators=100, random_state=42)
-    model.fit(X, y)
+    model.fit(X.reshape(X.shape[0], -1), y.reshape(-1))
     return model
 
 def predict_prices(model, data, scaler, lookback=60, days_to_predict=30):
     """Predict future stock prices"""
     last_sequence = data['Close'].values[-lookback:]
-    scaled_sequence = scaler.transform(last_sequence.reshape(-1, 1))
+    scaled_last_sequence = scaler.transform(last_sequence.reshape(-1, 1))
     
     predictions = []
-    current_sequence = scaled_sequence.reshape(1, -1)
+    current_sequence = scaled_last_sequence.copy()
     
     for _ in range(days_to_predict):
-        next_pred = model.predict(current_sequence)
+        next_pred = model.predict(current_sequence.reshape(1, -1))
         predictions.append(next_pred[0])
         current_sequence = np.roll(current_sequence, -1)
-        current_sequence[0, -1] = next_pred
+        current_sequence[-1] = next_pred
     
-    predictions = np.array(predictions).reshape(-1, 1)
-    predictions = scaler.inverse_transform(predictions)
-    
-    return predictions.flatten()
+    predicted_prices = scaler.inverse_transform(np.array(predictions).reshape(-1, 1))
+    return predicted_prices.flatten()
 
 def main():
-    """Main application function"""
-    st.title('📈 Stock Trading App with AI Assistant')
+    st.title("Stock Trading App with AI Assistant 📈")
     
     # Sidebar
-    with st.sidebar:
-        st.title('Navigation')
-        stock_symbol = st.text_input('Enter Stock Symbol:', value=st.session_state['selected_stock'])
-        prediction_days = st.slider('Prediction Days:', 5, 60, st.session_state['prediction_days'])
-        
-        if stock_symbol != st.session_state['selected_stock']:
-            st.session_state['selected_stock'] = stock_symbol
-        if prediction_days != st.session_state['prediction_days']:
-            st.session_state['prediction_days'] = prediction_days
+    st.sidebar.header("Settings")
+    selected_stock = st.sidebar.text_input("Enter Stock Symbol", value=st.session_state['selected_stock'])
+    prediction_days = st.sidebar.slider("Prediction Days", 7, 60, st.session_state['prediction_days'])
+    
+    if selected_stock != st.session_state['selected_stock']:
+        st.session_state['selected_stock'] = selected_stock
+        st.session_state.ai_analysis = None
+    
+    if prediction_days != st.session_state['prediction_days']:
+        st.session_state['prediction_days'] = prediction_days
     
     # Load data
-    stock, data = load_stock_data()
+    stock, df = load_stock_data()
     
-    if len(data) > 0:
+    if len(df) > 0:
         # Calculate indicators
-        data = calculate_indicators(data)
+        df = calculate_indicators(df)
         
         # Display stock info
-        info = stock.info
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Current Price", f"${data['Close'][-1]:.2f}")
+            st.metric("Current Price", f"${df['Close'].iloc[-1]:.2f}", 
+                     f"{((df['Close'].iloc[-1] - df['Close'].iloc[-2])/df['Close'].iloc[-2]*100):.2f}%")
         with col2:
-            st.metric("Market Cap", f"${info.get('marketCap', 0)/1e9:.2f}B")
+            st.metric("Volume", f"{df['Volume'].iloc[-1]:,.0f}")
         with col3:
-            st.metric("Volume", f"{info.get('volume', 0):,}")
+            st.metric("RSI", f"{df['RSI'].iloc[-1]:.2f}")
         
-        # Display stock chart
-        fig = go.Figure()
-        fig.add_trace(go.Candlestick(
-            x=data.index,
-            open=data['Open'],
-            high=data['High'],
-            low=data['Low'],
-            close=data['Close'],
-            name='Stock Price'
-        ))
-        fig.add_trace(go.Scatter(x=data.index, y=data['MA20'], name='20-day MA'))
-        fig.add_trace(go.Scatter(x=data.index, y=data['MA50'], name='50-day MA'))
-        fig.update_layout(title='Stock Price Chart', xaxis_title='Date', yaxis_title='Price')
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # AI Predictions
-        st.subheader('AI Price Predictions')
-        lookback = 60
-        
-        if len(data) > lookback:
-            X, y, scaler = prepare_data(data, lookback)
+        # Prepare data for prediction
+        X, y, scaler = prepare_data(df[['Close']])
+        if len(X) > 0:
+            # Train model and make predictions
             model = train_model(X, y)
-            predictions = predict_prices(model, data, scaler, lookback, st.session_state['prediction_days'])
+            predictions = predict_prices(model, df, scaler, days_to_predict=prediction_days)
             
-            future_dates = pd.date_range(
-                start=data.index[-1] + timedelta(days=1),
-                periods=st.session_state['prediction_days']
-            )
+            # Create future dates for predictions
+            last_date = df.index[-1]
+            future_dates = pd.date_range(start=last_date + timedelta(days=1), 
+                                       periods=prediction_days, freq='B')
             
-            fig_pred = go.Figure()
-            fig_pred.add_trace(go.Scatter(
-                x=data.index[-100:],
-                y=data['Close'][-100:],
-                name='Historical Price'
-            ))
-            fig_pred.add_trace(go.Scatter(
-                x=future_dates,
-                y=predictions,
-                name='Predicted Price'
-            ))
-            fig_pred.update_layout(title='Price Predictions', xaxis_title='Date', yaxis_title='Price')
-            st.plotly_chart(fig_pred, use_container_width=True)
+            # Plot
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=df.index, y=df['Close'], name='Historical'))
+            fig.add_trace(go.Scatter(x=future_dates, y=predictions, name='Predicted',
+                                   line=dict(dash='dash')))
             
-            # Display prediction metrics
-            pred_change = (predictions[-1] - data['Close'][-1]) / data['Close'][-1] * 100
-            st.metric(
-                "Predicted Price Change",
-                f"{pred_change:.2f}%",
-                delta=f"${predictions[-1] - data['Close'][-1]:.2f}"
-            )
+            fig.update_layout(title='Stock Price Prediction',
+                            xaxis_title='Date',
+                            yaxis_title='Price',
+                            hovermode='x unified')
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # AI Analysis Section
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                if st.button('Get AI Market Analysis'):
+                    with st.spinner('Generating AI Analysis...'):
+                        st.session_state.ai_analysis = get_deepseek_analysis(selected_stock, df)
+
+            with col2:
+                if st.session_state.ai_analysis:
+                    st.download_button(
+                        label="Download Analysis",
+                        data=st.session_state.ai_analysis,
+                        file_name=f"{selected_stock}_analysis.txt",
+                        mime="text/plain"
+                    )
+
+            if st.session_state.ai_analysis:
+                st.subheader("🤖 AI Market Analysis")
+                st.markdown(st.session_state.ai_analysis)
+                st.caption("Disclaimer: This AI analysis is for informational purposes only. Always conduct your own research before making investment decisions.")
+            
+            # Technical Indicators
+            st.subheader("Technical Indicators")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # MACD
+                fig_macd = go.Figure()
+                fig_macd.add_trace(go.Scatter(x=df.index, y=df['MACD'], name='MACD'))
+                fig_macd.add_trace(go.Scatter(x=df.index, y=df['Signal_Line'], name='Signal Line'))
+                fig_macd.update_layout(title='MACD', height=400)
+                st.plotly_chart(fig_macd, use_container_width=True)
+            
+            with col2:
+                # RSI
+                fig_rsi = go.Figure()
+                fig_rsi.add_trace(go.Scatter(x=df.index, y=df['RSI'], name='RSI'))
+                fig_rsi.add_hline(y=70, line_dash="dash", line_color="red")
+                fig_rsi.add_hline(y=30, line_dash="dash", line_color="green")
+                fig_rsi.update_layout(title='RSI', height=400)
+                st.plotly_chart(fig_rsi, use_container_width=True)
 
 if __name__ == "__main__":
     main()
