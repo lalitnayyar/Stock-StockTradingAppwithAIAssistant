@@ -201,67 +201,68 @@ def display_stock_info(df, stock_symbol):
     if len(df) > 0:
         df = calculate_indicators(df)
         
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Current Price", f"${df['Close'].iloc[-1]:.2f}", 
-                     f"{((df['Close'].iloc[-1] - df['Close'].iloc[-2])/df['Close'].iloc[-2]*100):.2f}%")
-        with col2:
-            st.metric("Volume", f"{df['Volume'].iloc[-1]:,.0f}")
-        with col3:
-            st.metric("RSI", f"{df['RSI'].iloc[-1]:.2f}")
+        # Create two columns with different ratios
+        empty_col, main_col = st.columns([1, 4])
         
-        X, y, scaler = prepare_data(df[['Close']])
-        if len(X) > 0:
-            model = train_model(X, y)
-            predictions = predict_prices(model, df, scaler, days_to_predict=st.session_state['prediction_days'])
-            
-            last_date = df.index[-1]
-            future_dates = pd.date_range(start=last_date + timedelta(days=1), 
-                                       periods=st.session_state['prediction_days'], freq='B')
-            
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(x=df.index, y=df['Close'], name='Historical'))
-            fig.add_trace(go.Scatter(x=future_dates, y=predictions, name='Predicted',
-                                   line=dict(dash='dash')))
-            
-            fig.update_layout(title='Stock Price Prediction',
-                            xaxis_title='Date',
-                            yaxis_title='Price',
-                            hovermode='x unified')
-            
-            st.plotly_chart(fig, use_container_width=True)
-            
-            col1, col2 = st.columns([2, 1])
-            with col1:
-                if st.button('Get AI Market Analysis'):
-                    with st.spinner('Generating AI Analysis...'):
-                        st.session_state.ai_analysis = get_deepseek_analysis(stock_symbol, df)
-
-            with col2:
-                if st.session_state.ai_analysis:
-                    st.download_button(
-                        label="Download Analysis",
-                        data=st.session_state.ai_analysis,
-                        file_name=f"{stock_symbol}_analysis.txt",
-                        mime="text/plain"
-                    )
-
+        # Main column (right) - All content
+        with main_col:
+            # AI Analysis Results
             if st.session_state.ai_analysis:
                 st.subheader("🤖 AI Market Analysis")
                 st.markdown(st.session_state.ai_analysis)
+                st.download_button(
+                    label="Download Analysis",
+                    data=st.session_state.ai_analysis,
+                    file_name=f"{stock_symbol}_analysis.txt",
+                    mime="text/plain"
+                )
                 st.caption("Disclaimer: This AI analysis is for informational purposes only.")
             
-            st.subheader("Technical Indicators")
-            col1, col2 = st.columns(2)
-            
+            # Metrics row
+            col1, col2, col3 = st.columns(3)
             with col1:
+                st.metric("Current Price", f"${df['Close'].iloc[-1]:.2f}", 
+                         f"{((df['Close'].iloc[-1] - df['Close'].iloc[-2])/df['Close'].iloc[-2]*100):.2f}%")
+            with col2:
+                st.metric("Volume", f"{df['Volume'].iloc[-1]:,.0f}")
+            with col3:
+                st.metric("RSI", f"{df['RSI'].iloc[-1]:.2f}")
+            
+            # Price Prediction
+            X, y, scaler = prepare_data(df[['Close']])
+            if len(X) > 0:
+                model = train_model(X, y)
+                predictions = predict_prices(model, df, scaler, days_to_predict=st.session_state['prediction_days'])
+                
+                last_date = df.index[-1]
+                future_dates = pd.date_range(start=last_date + timedelta(days=1), 
+                                           periods=st.session_state['prediction_days'], freq='B')
+                
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(x=df.index, y=df['Close'], name='Historical'))
+                fig.add_trace(go.Scatter(x=future_dates, y=predictions, name='Predicted',
+                                       line=dict(dash='dash')))
+                
+                fig.update_layout(title='Stock Price Prediction',
+                                xaxis_title='Date',
+                                yaxis_title='Price',
+                                hovermode='x unified',
+                                height=400)
+                
+                st.plotly_chart(fig, use_container_width=True)
+            
+            # Technical Indicators
+            st.subheader("Technical Indicators")
+            tech_col1, tech_col2 = st.columns(2)
+            
+            with tech_col1:
                 fig_macd = go.Figure()
                 fig_macd.add_trace(go.Scatter(x=df.index, y=df['MACD'], name='MACD'))
                 fig_macd.add_trace(go.Scatter(x=df.index, y=df['Signal_Line'], name='Signal Line'))
                 fig_macd.update_layout(title='MACD', height=400)
                 st.plotly_chart(fig_macd, use_container_width=True)
             
-            with col2:
+            with tech_col2:
                 fig_rsi = go.Figure()
                 fig_rsi.add_trace(go.Scatter(x=df.index, y=df['RSI'], name='RSI'))
                 fig_rsi.add_hline(y=70, line_dash="dash", line_color="red")
@@ -288,7 +289,13 @@ def main():
                     )
                     if selected_suggestion:
                         st.session_state['selected_stock'] = selected_suggestion
-                        st.session_state.ai_analysis = None
+                        
+                        # AI Analysis Button in sidebar
+                        if st.button('Get AI Market Analysis'):
+                            with st.spinner('Generating AI Analysis...'):
+                                stock, df = load_stock_data()
+                                if stock and len(df) > 0:
+                                    st.session_state.ai_analysis = get_deepseek_analysis(selected_suggestion, df)
                         
                         # Load and display stock data immediately
                         stock, df = load_stock_data()
@@ -299,7 +306,13 @@ def main():
                                              value=st.session_state['selected_stock'])
         if selected_stock != st.session_state['selected_stock']:
             st.session_state['selected_stock'] = selected_stock
-            st.session_state.ai_analysis = None
+            
+            # AI Analysis Button in sidebar
+            if st.button('Get AI Market Analysis'):
+                with st.spinner('Generating AI Analysis...'):
+                    stock, df = load_stock_data()
+                    if stock and len(df) > 0:
+                        st.session_state.ai_analysis = get_deepseek_analysis(selected_stock, df)
             
             # Load and display stock data immediately
             stock, df = load_stock_data()
