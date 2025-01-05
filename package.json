@@ -1,0 +1,19 @@
+{
+  "name": "stock-trading-app",
+  "version": "1.0.0",
+  "description": "Stock Trading Application with AI Assistant",
+  "main": "worker/worker.js",
+  "scripts": {
+    "build": "bash ./build.sh",
+    "start": "python start.py",
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev"
+  },
+  "dependencies": {
+    "@cloudflare/workers-types": "^4.20231218.0",
+    "itty-router": "^3.0.12"
+  },
+  "devDependencies": {
+    "wrangler": "^3.99.0"
+  }
+}
